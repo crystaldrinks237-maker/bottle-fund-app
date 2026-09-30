@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { api, useApi } from '@/lib/client';
+import { api, useApi, viewAsUser } from '@/lib/client';
 import { ListView } from '@/components/ui/ListView';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
@@ -22,7 +22,7 @@ function AssignGuarantor({ investor, onClose, onSaved }: { investor: any; onClos
 }
 
 export default function Investors() {
-  const [sel, setSel] = useState<any>(null); const [k, setK] = useState(0);
+  const [sel, setSel] = useState<any>(null); const [k, setK] = useState(0); const toast = useToast();
   return (
     <>
       <PageHeader title="Investors" subtitle="Everyone who has registered to invest." />
@@ -34,7 +34,7 @@ export default function Investors() {
           { key: 'v', header: 'Verified invested', sort: 'invested', align: 'right', render: r => <MoneyDisplay value={r.invested} /> },
           { key: 'p', header: 'Payout account', render: r => (r.payout_account ? `${r.payout_method || ''} ${r.payout_account}` : <span className="muted">Not set</span>) },
           { key: 'c', header: 'Joined', sort: 'created', render: r => formatDate(r.created_at) },
-          { key: 'a', header: '', actions: true, render: r => <button className="btn btn-sm" onClick={() => setSel(r)}>Set guarantor</button> },
+          { key: 'a', header: '', actions: true, render: r => <div className="row"><button className="btn btn-sm" onClick={() => setSel(r)}>Set guarantor</button><button className="btn btn-sm" onClick={() => viewAsUser(r.id, 'investor').catch((e: any) => toast.error(e.message))}>View as</button></div> },
         ]} />
       {sel && <AssignGuarantor investor={sel} onClose={() => setSel(null)} onSaved={() => setK(k + 1)} />}
     </>

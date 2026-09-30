@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { signOut } from 'next-auth/react';
 import { Icon } from '../ui/Icon';
-import { api } from '@/lib/client';
+import { api, stopViewingAs } from '@/lib/client';
 import { formatDateTime } from '@/lib/format';
 
 interface Item { href: string; label: string; icon: string; exact?: boolean }
@@ -47,7 +47,7 @@ function Bell() {
   );
 }
 
-export function DashboardShell({ user, children }: { user: { username: string; full_name: string | null; roles: string[] }; children: React.ReactNode }) {
+export function DashboardShell({ user, viewingAs, children }: { user: { username: string; full_name: string | null; roles: string[] }; viewingAs?: { admin: string } | null; children: React.ReactNode }) {
   const path = usePathname(); const [open, setOpen] = useState(false);
   useEffect(() => setOpen(false), [path]);
   const groups = (['ADMIN', 'INVESTOR', 'GUARANTOR'] as const).filter(r => user.roles.includes(r)).map(r => NAV[r]);
@@ -67,7 +67,7 @@ export function DashboardShell({ user, children }: { user: { username: string; f
         <div className="foot">
           <div style={{ fontWeight: 700 }}>{user.full_name || user.username}</div>
           <div className="small muted" style={{ marginBottom: 8 }}>@{user.username} · {user.roles.map(r => r.toLowerCase()).join(', ')}</div>
-          <button className="btn btn-sm btn-ghost" style={{ paddingLeft: 0 }} onClick={() => signOut({ callbackUrl: '/login' })}><Icon name="logout" />Sign out</button>
+          <button className="btn btn-sm btn-ghost" style={{ paddingLeft: 0 }} onClick={async () => { if (viewingAs) await api('/api/admin/impersonate', { method: 'DELETE' }).catch(() => {}); signOut({ callbackUrl: '/login' }); }}><Icon name="logout" />Sign out</button>
         </div>
       </aside>
       <div className={`scrim ${open ? 'open' : ''}`} onClick={() => setOpen(false)} />
@@ -80,6 +80,12 @@ export function DashboardShell({ user, children }: { user: { username: string; f
           <Bell />
         </header>
         <main className="content" id="main">{children}</main>
+        {viewingAs && (
+          <div className="viewas" role="status">
+            <span>Viewing as <b>@{user.username}</b> — you are signed in as admin <b>@{viewingAs.admin}</b>. Actions you take here are real and are logged.</span>
+            <button className="btn btn-sm" onClick={() => stopViewingAs('/admin/investors')}>Exit view</button>
+          </div>
+        )}
       </div>
     </div>
   );

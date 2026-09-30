@@ -175,3 +175,7 @@ a.stat:hover { border-color: var(--sky); text-decoration: none; }
 .auth-side ul { list-style: none; padding: 0; margin: 26px 0 0; display: grid; gap: 12px; max-width: 460px; } .auth-side li { display: flex; gap: 12px; color: #E6F1FB; } .auth-side li i { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--leaf); margin-top: 8px; }
 .auth-side svg.wave { position: absolute; left: 0; top: 0; width: 100%; height: 55%; opacity: .5; }
 @media (max-width: 860px) { .auth { grid-template-columns: 1fr; } .auth-side { display: none; } }
+
+/* ---------- admin "View as user" banner (sticks to the bottom so it never collides with the sticky top bar) ---------- */
+.viewas { position: sticky; bottom: 0; z-index: 40; margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 28px; background: var(--amber-100); color: var(--amber); border-top: 1px solid #F0D08A; font-size: .85rem; }
+@media (max-width: 900px) { .viewas { padding: 10px 14px; } }
