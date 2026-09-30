@@ -18,7 +18,7 @@ export default function Overview() {
     { href: '/admin/claims?status=OPEN', label: 'Payment claims', n: c.open_claims, sub: 'Open or under review', hot: c.open_claims > 0 },
     { href: '/admin/payment-accounts', label: 'Accounts near limit', n: data.near_limit.length, sub: 'Near, at limit or daily cap', hot: data.near_limit.length > 0 },
   ];
-  const chart = data.cashflow.map((d: any) => ({ label: d.day ? formatDate(d.day + 'T12:00:00Z').slice(0, 6) : 'Due now', value: n(d.amount), hot: !d.day, title: `${d.count} payout(s) · PKR ${n(d.amount).toLocaleString()}` }));
+  const chart = data.cashflow.map((d: any) => ({ label: d.day ? formatDate(String(d.day).slice(0, 10) + 'T12:00:00Z').slice(0, 6) : 'Due now', value: n(d.amount), hot: !d.day, title: `${d.count} payout(s) · PKR ${n(d.amount).toLocaleString()}` }));
   return (
     <>
       <PageHeader title="Overview" subtitle="What needs your attention right now." actions={<Link className="btn btn-primary" href="/admin/funding-needs">Manage funding needs</Link>} />

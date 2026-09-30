@@ -33,7 +33,7 @@ export async function overview() {
     query(`SELECT * FROM (SELECT ${ACCOUNT_SELECT} FROM payment_accounts pa WHERE pa.status = 'ACTIVE') x WHERE availability IN ('NEAR_LIMIT','LIMIT_REACHED','DAILY_LIMIT_REACHED') ORDER BY allocated_amount DESC LIMIT 6`),
     query(`SELECT id, title, product, total_capital, funded_amount, remaining_amount, status FROM funding_needs WHERE status IN ('OPEN','FULL') ORDER BY opened_at DESC NULLS LAST LIMIT 6`),
     // obligations by local calendar day: everything already due collapses into "now", the rest by due day, next 14 days
-    query(`SELECT CASE WHEN due_at <= now() THEN NULL ELSE (due_at AT TIME ZONE '${TZ}')::date END AS day, COUNT(*)::int AS count, SUM(amount) AS amount
+    query(`SELECT CASE WHEN due_at <= now() THEN NULL ELSE to_char((due_at AT TIME ZONE '${TZ}')::date, 'YYYY-MM-DD') END AS day, COUNT(*)::int AS count, SUM(amount) AS amount
              FROM payouts WHERE status IN ('DUE','PROCESSING') AND due_at <= now() + interval '14 days' GROUP BY 1 ORDER BY 1 NULLS FIRST`),
     query(`SELECT a.id, a.action, a.entity_type, a.entity_id, a.created_at, u.username AS actor FROM audit_logs a LEFT JOIN users u ON u.id = a.actor_id ORDER BY a.created_at DESC LIMIT 8`),
   ]);
