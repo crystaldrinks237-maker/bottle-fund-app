@@ -62,8 +62,8 @@ export async function getNeedAdmin(id: number) {
                   COALESCE(SUM(business_profit) FILTER (WHERE status IN ('VERIFIED','PAYOUT_DUE','COMPLETED')),0) AS business_profit
              FROM investments WHERE funding_need_id = $1`, [id]),
     query(`SELECT a.id, a.action, a.metadata, a.created_at, u.username AS actor FROM audit_logs a LEFT JOIN users u ON u.id = a.actor_id
-            WHERE (a.entity_type = 'funding_need' AND a.entity_id = $1::text)
-               OR (a.entity_type = 'investment' AND a.entity_id IN (SELECT id::text FROM investments WHERE funding_need_id = $1))
+            WHERE (a.entity_type = 'funding_need' AND a.entity_id = ($1::int)::text)
+               OR (a.entity_type = 'investment' AND a.entity_id IN (SELECT id::text FROM investments WHERE funding_need_id = $1::int))
             ORDER BY a.created_at DESC LIMIT 30`, [id]),
     query(`SELECT g.username AS guarantor, COUNT(*)::int AS investments, COALESCE(SUM(i.guarantor_profit),0) AS earnings
              FROM investments i JOIN users g ON g.id = i.guarantor_id

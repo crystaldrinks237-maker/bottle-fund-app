@@ -4,6 +4,7 @@ import { withAuth } from 'next-auth/middleware';
 // is enforced again on the server in every API route and layout via lib/session.ts.
 export default withAuth({ pages: { signIn: '/login' } });
 export const config = {
-  // /api/* is excluded on purpose: every API route authenticates itself and answers 401/403 as JSON (not a redirect).
-  matcher: ['/((?!api|login|signup|_next|logo|icon|favicon).*)'],
+  // Only the signed-in areas are gated here. "/" (welcome page), /login, /signup and /api/* are public at this layer;
+  // every API route authenticates itself, and every signed-in layout re-checks the session and role.
+  matcher: ['/admin/:path*', '/dashboard/:path*', '/investments/:path*', '/funding-needs/:path*', '/payouts/:path*', '/profile/:path*', '/guarantor/:path*', '/notifications/:path*'],
 };

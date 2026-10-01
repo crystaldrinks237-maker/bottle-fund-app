@@ -1,10 +1,11 @@
 import Image from 'next/image';
+import Link from 'next/link';
 
 export function AuthShell({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
   return (
     <div className="auth">
       <div className="auth-form">
-        <Image src="/logo.png" alt="Crystal Drinks" width={116} height={124} className="logo" priority />
+        <Link href="/" aria-label="Crystal Drinks home"><Image src="/logo.png" alt="Crystal Drinks" width={116} height={124} className="logo" priority /></Link>
         <h1>{title}</h1>
         <p className="muted" style={{ margin: '6px 0 24px' }}>{subtitle}</p>
         {children}

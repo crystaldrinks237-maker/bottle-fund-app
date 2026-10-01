@@ -61,3 +61,9 @@ Note: the Google OAuth round-trip itself can't be tested without real credential
 
 ## Migration addendum
 New migration `003_min_investment_fallback_google.sql` (adds `funding_needs.min_investment`, `investments.guarantor_is_fallback`, `users.email/google_sub/has_password`). `npm run db:migrate` applies 001–003 in order.
+
+## Welcome page & calculator
+`/` is now the public welcome page (signed-in users are redirected to their dashboard; `/login` and `/signup` are unchanged). It has a live profit calculator, how-it-works, the currently open funding needs, a guarantor section, FAQ and sign-up calls to action. The calculator calls `GET /api/public/calculator`, which uses the same `lib/calc.ts` as real investments and returns only profit shares and results — never cost, sell price, operating cost or the business share. Drafts are never public. Optional env: `NEXT_PUBLIC_CONTACT_WHATSAPP` / `NEXT_PUBLIC_CONTACT_EMAIL` add an "ask us to make me a guarantor" button.
+
+## Testing
+`scripts/e2e.mjs` (API, 182 checks incl. a sweep that opens every admin list/detail endpoint), `scripts/google-test.ts`, and `scripts/browser-smoke.py` (Playwright: loads every page as admin/investor/guarantor, desktop + mobile, failing on console errors, error screens or mobile overflow).

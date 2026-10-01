@@ -344,4 +344,34 @@ ok((await admin.req('/api/me')).data.roles.includes('INVESTOR'), 'profile endpoi
 ok((await admin.req('/api/me/roles', { method: 'POST', json: { investor: false } })).status === 200 && !(await sql(`SELECT roles FROM users WHERE id=$1`, [adminId]))[0].roles.includes('INVESTOR'), 'admin can turn the investor side off again');
 ok((await invest(admin, need1.id, '1000', acctA.id)).status === 403, '…after which investing is refused for that account');
 await admin.req('/api/me/roles', { method: 'POST', json: { investor: true } });
+section('Sweep: every admin read endpoint (list + detail) answers 200 with real data');
+const anyId = async (t) => (await sql(`SELECT id FROM ${t} ORDER BY id LIMIT 1`))[0]?.id;
+const needIds = (await sql(`SELECT id, status FROM funding_needs ORDER BY id`));
+let sweepOk = true; const sweepBad = [];
+for (const n of needIds) { const r = await admin.req(`/api/funding-needs/${n.id}`); if (r.status !== 200 || !r.data.need || !r.data.calc) { sweepOk = false; sweepBad.push(`need ${n.id} (${n.status}) → ${r.status}`); }
+  const r2 = await admin.req(`/api/funding-needs/${n.id}/investments`); if (r2.status !== 200) { sweepOk = false; sweepBad.push(`need ${n.id} investments → ${r2.status}`); } }
+ok(sweepOk && needIds.length > 5, `funding-need detail + investments open for all ${needIds.length} needs (draft, open, full, closed…)` + (sweepBad.length ? ' — ' + sweepBad.join('; ') : ''));
+const draft = (await admin.req('/api/funding-needs', { method: 'POST', json: { title: 'Draft sweep ' + S, product: 'D', quantity: 100, cost_price: '35', sell_price: '60', op_cost: '5', investor_pct: '20', guarantor_pct: '10' } })).data;
+const dr = await admin.req(`/api/funding-needs/${draft.id}`);
+ok(dr.status === 200 && dr.data.need.status === 'DRAFT' && dr.data.accounts.length === 0, 'a DRAFT with no accounts and no investments opens (the case that failed in production)');
+const reads = ['/api/funding-needs', '/api/investments', `/api/investments/${await anyId('investments')}`, '/api/payment-accounts', `/api/payment-accounts/${await anyId('payment_accounts')}`, '/api/payouts', '/api/guarantors', '/api/admin/investors', '/api/guarantor-payments', `/api/guarantor-payments/${await anyId('guarantor_payments')}`, '/api/payment-claims', '/api/admin/audit-logs', '/api/admin/settings', '/api/admin/overview', '/api/notifications', '/api/me', '/api/me/dashboard'];
+const failed = []; for (const u of reads) { const r = await admin.req(u); if (r.status !== 200) failed.push(`${u} → ${r.status}`); }
+ok(failed.length === 0, `all ${reads.length} other admin read endpoints return 200` + (failed.length ? ' — ' + failed.join('; ') : ''));
+section('New: public welcome page + calculator (no login)');
+const pub = new Client();
+const pc = (await pub.req(`/api/public/calculator?need_id=${need1.id}&amount=50000&referred=500000`)).data;
+ok(pc.invest?.profit === '8000.00' && pc.invest.total_return === '58000.00' && pc.invest.return_pct === '16.00' && pc.invest.days === 7, 'anonymous calculator: 50,000 → profit 8,000, total 58,000 after 7 days (16%)');
+ok(pc.referral?.guarantor_earnings === '20000.00' && pc.combined?.total_profit === '28000.00', 'referring 500,000 earns 20,000 as guarantor; combined with own profit 28,000');
+const only = (await pub.req(`/api/public/calculator?need_id=${need1.id}&referred=100000`)).data;
+ok(only.invest === null && only.referral.guarantor_earnings === '4000.00' && only.combined.total_profit === '4000.00', 'guarantor-only scenario (no own money): 4,000 per 100,000 referred');
+const leak = JSON.stringify(pc);
+ok(!/cost_price|sell_price|op_cost|business_pct|business_profit|created_by/.test(leak), 'public payload exposes no prices, costs or business share');
+ok((await pub.req('/api/public/calculator?amount=abc')).status === 400 && (await pub.req('/api/public/calculator?amount=-5')).status === 400 && (await pub.req('/api/public/calculator?amount=99999999999999')).status === 400, 'invalid / negative / absurd amounts rejected');
+ok((await pub.req(`/api/public/calculator?need_id=${draft.id}`)).status === 404, 'a DRAFT need is not visible publicly');
+ok(!pc.needs.some(x => x.id === draft.id), 'public list contains only open/full needs');
+const home = await pub.req('/');
+ok(home.status === 200 && /Profit calculator|See what you/.test(home.data) && /How it works/.test(home.data), 'welcome page renders for visitors at /');
+ok(!/cost_price|sell_price|op_cost/.test(home.data), 'welcome page HTML exposes no private pricing');
+ok((await admin.req('/')).status === 307, 'signed-in users are sent on to their dashboard');
+ok((await pub.req('/admin')).status === 307 && (await pub.req('/dashboard')).status === 307, 'protected areas still redirect visitors to sign-in');
 console.log(`\n${pass} passed, ${fail} failed`); await db.end(); process.exit(fail ? 1 : 0);
