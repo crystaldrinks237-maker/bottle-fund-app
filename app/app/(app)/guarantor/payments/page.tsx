@@ -11,7 +11,7 @@ export default function GuarantorPayments() {
   return (
     <>
       <PageHeader title="Monthly payments" subtitle="One payment per month, with its transaction ID once sent." />
-      <ListView endpoint="/api/guarantor-payments" defaultSort="-month" empty={{ title: 'No payments yet', text: 'Your first payment appears once an administrator finalises a month.' }}
+      <ListView endpoint="/api/guarantor-payments" extraParams={{ scope: 'mine' }} defaultSort="-month" empty={{ title: 'No payments yet', text: 'Your first payment appears once an administrator finalises a month.' }}
         filters={[{ key: 'status', label: 'Status', type: 'select', options: ['PENDING', 'PROCESSING', 'PAID', 'CLAIMED_NOT_RECEIVED', 'RESOLVED'].map(s => ({ value: s, label: s.toLowerCase().replace(/_/g, ' ') })) }]}
         columns={[
           { key: 'm', header: 'Month', sort: 'month', render: r => <b>{formatMonth(r.period_month)}</b> },

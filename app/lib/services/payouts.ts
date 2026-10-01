@@ -23,7 +23,7 @@ export async function assertTxnUnused(t: Tx, txn: string, exclude: { payout?: nu
 
 export async function listPayouts(user: CurrentUser, url: URL, unpaged = false) {
   await materializeDue();
-  const admin = isAdmin(user);
+  const admin = isAdmin(user) && url.searchParams.get('scope') !== 'mine';
   const { page, size, offset } = pageParams(url);
   const w = new Where();
   if (!admin) w.add('p.investor_id = ?', user.id);
@@ -73,7 +73,7 @@ export async function actOnPayout(admin: CurrentUser, id: number, raw: unknown) 
       `UPDATE payouts SET status = 'PAID', transaction_id = $2, paid_at = now(), paid_to = $3, processed_by = $4, notes = COALESCE($5, notes), updated_at = now() WHERE id = $1 RETURNING *`,
       [id, txn, paidTo, admin.id, b.notes || null]);
     await t.q(`UPDATE investments SET status = 'COMPLETED', updated_at = now() WHERE id = $1`, [p.investment_id]);
-    await audit(t, admin.id, 'payout.paid', 'payout', id, { amount: p.amount, transaction_id: txn, investment_id: p.investment_id });
+    await audit(t, admin.id, 'payout.paid', 'payout', id, { amount: p.amount, transaction_id: txn, investment_id: p.investment_id, ...(p.investor_id === admin.id ? { self_review: true } : {}) });
     await notify(t, p.investor_id, { type: 'PAYOUT_PAID', title: 'Payout sent', body: `${formatMoney(p.amount)} has been sent. Transaction ID: ${txn}`, link: `/investments/${p.investment_id}` });
     return row;
   });

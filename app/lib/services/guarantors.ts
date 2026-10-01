@@ -179,7 +179,7 @@ const GP_COLS = `gp.id, gp.guarantor_id, gp.period_month, gp.amount, gp.status, 
                  (SELECT COUNT(*) FROM guarantor_payment_items x WHERE x.guarantor_payment_id = gp.id)::int AS items`;
 
 export async function listGuarantorPayments(user: CurrentUser, url: URL, unpaged = false) {
-  const admin = isAdmin(user);
+  const admin = isAdmin(user) && url.searchParams.get('scope') !== 'mine';
   const { page, size, offset } = pageParams(url);
   const w = new Where();
   if (!admin) w.add('gp.guarantor_id = ?', user.id);

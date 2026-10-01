@@ -9,7 +9,7 @@ export default function Payouts() {
   return (
     <>
       <PageHeader title="Payouts" subtitle="Money owed to you and money already sent, with transaction IDs." />
-      <ListView endpoint="/api/payouts" defaultSort="due" search={undefined}
+      <ListView endpoint="/api/payouts" extraParams={{ scope: 'mine' }} defaultSort="due" search={undefined}
         filters={[{ key: 'status', label: 'Status', type: 'select', options: ['SCHEDULED', 'DUE', 'PROCESSING', 'PAID', 'CLAIMED_NOT_RECEIVED', 'RESOLVED'].map(s => ({ value: s, label: s === 'DUE' ? 'Due now' : s.toLowerCase().replace(/_/g, ' ') })) }]}
         empty={{ title: 'No payouts yet', text: 'A payout appears here once an investment is verified.' }}
         columns={[

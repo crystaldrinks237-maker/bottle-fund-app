@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { signIn } from 'next-auth/react';
 import { AuthShell } from '@/components/layout/AuthShell';
 import { Field } from '@/components/ui/kit';
+import { GoogleButton } from '@/components/layout/GoogleButton';
 import { api } from '@/lib/client';
 
 export default function Signup() {
@@ -20,6 +21,7 @@ export default function Signup() {
   }
   return (
     <AuthShell title="Create your investor account" subtitle="It takes a minute. You’ll choose a funding need after signing in.">
+      <div className="stack" style={{ marginBottom: 6 }}><GoogleButton label="Sign up with Google" /></div>
       <form onSubmit={submit} className="stack" noValidate>
         <div className="grid2">
           <Field label="Username" hint="Letters, numbers, dot, dash, underscore"><input className="input" autoComplete="username" autoCapitalize="none" value={f.username} onChange={set('username')} required /></Field>

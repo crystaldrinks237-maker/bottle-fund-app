@@ -25,7 +25,7 @@ export default function Dashboard() {
             <div className="card card-pad row between"><div><div className="muted small" style={{ fontWeight: 600 }}>Next payout · {data.next_payout.snap_title}</div><Countdown dueAt={data.next_payout.due_at} serverNow={data.server_now} onElapsed={reload} /></div>
               <Link className="btn" href={`/investments/${data.next_payout.id}`}>View investment</Link></div>)}
           <div><h2 style={{ marginBottom: 12 }}>Recent investments</h2>
-            <ListView endpoint="/api/investments" extraParams={{ size: '6' }} rowKey="id" empty={{ title: 'No investments yet', text: 'Choose a funding need to make your first investment.', action: <Link className="btn btn-primary" href="/funding-needs">Browse funding needs</Link> }}
+            <ListView endpoint="/api/investments" extraParams={{ size: '6', scope: 'mine' }} rowKey="id" empty={{ title: 'No investments yet', text: 'Choose a funding need to make your first investment.', action: <Link className="btn btn-primary" href="/funding-needs">Browse funding needs</Link> }}
               columns={[{ key: 'id', header: 'Investment', render: r => <Link href={`/investments/${r.id}`}>#{r.id} · {r.snap_title}</Link> }, { key: 'amount', header: 'Amount', align: 'right', render: r => <MoneyDisplay value={r.amount} /> },
                 { key: 'st', header: 'Status', render: r => <StatusBadge status={r.display_status} /> }, { key: 'due', header: 'Payout due', render: r => (r.due_at ? formatDate(r.due_at) : '—') }]} />
           </div>

@@ -17,6 +17,7 @@ export const needSchema = z.object({
   quantity: z.coerce.number().int().positive().max(1_000_000_000),
   cost_price: dec, sell_price: dec, op_cost: dec.default('0'),
   investor_pct: dec.default('0'), guarantor_pct: dec.default('0'),
+  min_investment: dec.default('0'),
   account_ids: z.array(idSchema).max(20).optional(),
   open_now: z.boolean().optional(),
 });

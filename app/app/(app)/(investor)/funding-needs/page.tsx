@@ -5,7 +5,7 @@ import { EmptyState, ErrorState, LoadingState, MoneyDisplay, PageHeader, Progres
 import { pct } from '@/lib/format';
 
 export default function Needs() {
-  const { data, error, loading, refetch } = useApi<any>('/api/funding-needs');
+  const { data, error, loading, refetch } = useApi<any>('/api/funding-needs?view=investor');
   return (
     <>
       <PageHeader title="Funding Needs" subtitle="Open production batches you can fund. Several can be open at once." />
@@ -16,6 +16,7 @@ export default function Needs() {
             <ProgressBar funded={n.funded_amount} total={n.total_capital} />
             <div className="row between small"><span className="muted">Your profit share</span><b>{pct(n.investor_pct)}</b></div>
             <div className="row between small"><span className="muted">Return on principal</span><b>{pct(n.calc.investor_return_pct)}</b></div>
+            {Number(n.min_investment) > 0 && <div className="row between small"><span className="muted">Minimum investment</span><b><MoneyDisplay value={n.min_investment} /></b></div>}
             <Link href={`/funding-needs/${n.id}`} className={`btn ${n.status === 'OPEN' ? 'btn-primary' : ''}`}>{n.status === 'OPEN' ? 'Invest' : 'View'}</Link>
           </div>))}</div>)}
     </>

@@ -8,7 +8,7 @@ import { statusMeta } from '@/lib/status';
 
 export function NeedForm({ need, accountIds, onClose, onSaved }: { need?: any; accountIds?: number[]; onClose: () => void; onSaved: () => void }) {
   const toast = useToast(); const editing = !!need;
-  const [f, setF] = useState({ title: need?.title || '', product: need?.product || '', description: need?.description || '', quantity: String(need?.quantity ?? ''), cost_price: need?.cost_price ?? '', sell_price: need?.sell_price ?? '', op_cost: need?.op_cost ?? '0', investor_pct: need?.investor_pct ?? '', guarantor_pct: need?.guarantor_pct ?? '' });
+  const [f, setF] = useState({ title: need?.title || '', product: need?.product || '', description: need?.description || '', quantity: String(need?.quantity ?? ''), cost_price: need?.cost_price ?? '', sell_price: need?.sell_price ?? '', op_cost: need?.op_cost ?? '0', investor_pct: need?.investor_pct ?? '', guarantor_pct: need?.guarantor_pct ?? '', min_investment: need?.min_investment ?? '0' });
   const [sel, setSel] = useState<number[]>(accountIds || []); const [openNow, setOpenNow] = useState(false);
   const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [prev, setPrev] = useState<any>(null); const [prevErr, setPrevErr] = useState('');
   const { data: accts } = useApi<any>('/api/payment-accounts');
@@ -49,6 +49,7 @@ export function NeedForm({ need, accountIds, onClose, onSaved }: { need?: any; a
           <Field label="Investor profit %"><input className="input" inputMode="decimal" value={f.investor_pct} onChange={set('investor_pct')} disabled={locked} required /></Field>
           <Field label="Guarantor profit %"><input className="input" inputMode="decimal" value={f.guarantor_pct} onChange={set('guarantor_pct')} disabled={locked} required /></Field>
         </div>
+        <Field label="Minimum investment (PKR)" hint="0 = no minimum. The final remaining slice of a need can always be filled, even if smaller."><input className="input" inputMode="decimal" value={f.min_investment} onChange={set('min_investment')} /></Field>
         {prevErr ? <div className="notice bad">{prevErr}</div> : prev && (
           <div className="notice"><div className="grid3" style={{ gap: 8 }}>
             <div>Capital required<br /><b><MoneyDisplay value={prev.total_capital} /></b></div><div>Profit / bottle<br /><b><MoneyDisplay value={prev.distributable_per_bottle} /></b></div><div>Business share<br /><b><MoneyDisplay value={prev.business_profit_pool} /></b></div>

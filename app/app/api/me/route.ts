@@ -3,14 +3,15 @@ import { handler, readJson, bad } from '@/lib/api';
 import { query, tx } from '@/lib/db';
 import { audit } from '@/lib/audit';
 import { requireUser } from '@/lib/session';
+import { googleEnabled } from '@/lib/auth';
 import { phoneSchema } from '@/lib/validators';
 
 export const GET = handler(async () => {
   const u = await requireUser();
   const [row] = await query(
-    `SELECT u.id, u.username, u.full_name, u.phone, u.roles, u.payout_method, u.payout_account, u.created_at, g.id AS guarantor_id, g.username AS guarantor_username
+    `SELECT u.id, u.username, u.full_name, u.phone, u.roles, u.payout_method, u.payout_account, u.created_at, u.email, (u.google_sub IS NOT NULL) AS google_linked, u.has_password, g.id AS guarantor_id, g.username AS guarantor_username
        FROM users u LEFT JOIN guarantor_relationships r ON r.investor_id = u.id LEFT JOIN users g ON g.id = r.guarantor_id WHERE u.id = $1`, [u.id]);
-  return row;
+  return { ...row, google_enabled: googleEnabled };
 });
 
 const schema = z.object({

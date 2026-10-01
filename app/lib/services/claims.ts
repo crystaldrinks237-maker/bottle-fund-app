@@ -42,7 +42,7 @@ const CLAIM_FROM = `FROM payment_claims c JOIN users cu ON cu.id = c.claimant_id
 const kind = `CASE WHEN c.guarantor_payment_id IS NOT NULL THEN 'GUARANTOR_PAYMENT' ELSE 'INVESTOR_PAYOUT' END`;
 
 export async function listClaims(user: CurrentUser, url: URL) {
-  const admin = isAdmin(user);
+  const admin = isAdmin(user) && url.searchParams.get('scope') !== 'mine';
   const { page, size, offset } = pageParams(url);
   const w = new Where();
   if (!admin) w.add('c.claimant_id = ?', user.id);

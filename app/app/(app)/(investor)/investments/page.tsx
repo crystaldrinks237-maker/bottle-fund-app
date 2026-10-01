@@ -9,7 +9,7 @@ export default function MyInvestments() {
   return (
     <>
       <PageHeader title="My Investments" subtitle="Every investment you’ve submitted, with its exact payout time." actions={<Link href="/funding-needs" className="btn btn-primary">New investment</Link>} />
-      <ListView endpoint="/api/investments" search="Search by funding need or investment ID" defaultSort="-created"
+      <ListView endpoint="/api/investments" extraParams={{ scope: 'mine' }} search="Search by funding need or investment ID" defaultSort="-created"
         filters={[{ key: 'status', label: 'Status', type: 'select', options: STATUSES.map(s => ({ value: s, label: s === 'VERIFIED' ? 'Verified (countdown)' : s.toLowerCase().replace(/_/g, ' ') })) }, { key: 'from', label: 'From', type: 'date' }, { key: 'to', label: 'To', type: 'date' }]}
         empty={{ title: 'No investments yet', text: 'Your submitted investments will appear here.' }}
         columns={[

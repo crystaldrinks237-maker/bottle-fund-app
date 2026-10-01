@@ -5,7 +5,7 @@ import { ErrorState, LoadingState, PageHeader, StatusBadge } from '@/components/
 import { InvestForm } from '@/components/domain/InvestForm';
 
 export default function NeedPage({ params }: { params: { id: string } }) {
-  const { data, error, loading, refetch } = useApi<any>(`/api/funding-needs/${params.id}`);
+  const { data, error, loading, refetch } = useApi<any>(`/api/funding-needs/${params.id}?view=investor`);
   return (
     <>
       <p style={{ marginBottom: 14 }}><Link href="/funding-needs">← Funding needs</Link></p>

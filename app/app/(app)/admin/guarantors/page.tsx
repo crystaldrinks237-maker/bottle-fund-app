@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { api, viewAsUser } from '@/lib/client';
+import { api } from '@/lib/client';
 import { ListView } from '@/components/ui/ListView';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
@@ -25,7 +25,7 @@ function AddGuarantor({ onClose, onSaved }: { onClose: () => void; onSaved: () =
 }
 
 export default function Guarantors() {
-  const [add, setAdd] = useState(false); const [k, setK] = useState(0); const toast = useToast();
+  const [add, setAdd] = useState(false); const [k, setK] = useState(0);
   return (
     <>
       <PageHeader title="Guarantors" subtitle="Referrers and their earnings." actions={<button className="btn btn-primary" onClick={() => setAdd(true)}>Add guarantor</button>} />
@@ -38,7 +38,6 @@ export default function Guarantors() {
           { key: 'un', header: 'Unsettled', align: 'right', render: r => <MoneyDisplay value={r.unsettled} /> },
           { key: 'p', header: 'Paid', align: 'right', render: r => <MoneyDisplay value={r.paid} /> },
           { key: 'c', header: 'Since', sort: 'created', render: r => formatDate(r.created_at) },
-          { key: 'a', header: '', actions: true, render: r => <button className="btn btn-sm" onClick={() => viewAsUser(r.id, 'guarantor').catch((e: any) => toast.error(e.message))}>View as</button> },
         ]} />
       {add && <AddGuarantor onClose={() => setAdd(false)} onSaved={() => setK(k + 1)} />}
     </>

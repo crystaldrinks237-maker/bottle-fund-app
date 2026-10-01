@@ -4,7 +4,8 @@ import { createNeed, listNeedsAdmin, listNeedsInvestor } from '@/lib/services/ne
 
 export const GET = handler(async req => {
   const u = await requireUser();
-  return isAdmin(u) ? listNeedsAdmin(new URL(req.url)) : listNeedsInvestor();
+  const url = new URL(req.url);
+  return isAdmin(u) && url.searchParams.get('view') !== 'investor' ? listNeedsAdmin(url) : listNeedsInvestor();
 });
 export const POST = handler(async req => {
   const u = await requireUser('ADMIN');

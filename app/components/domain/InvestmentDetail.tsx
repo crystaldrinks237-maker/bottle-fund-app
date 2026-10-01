@@ -69,7 +69,7 @@ export function InvestmentDetail({ id, admin }: { id: number; admin?: boolean })
         <div className="card"><div className="card-head"><h2>Admin details</h2></div><div className="card-pad"><KV items={[
           ['Investor', <>{i.investor_username}{i.investor_full_name ? ` · ${i.investor_full_name}` : ''}</>], ['Phone', i.investor_phone || '—'],
           ['Payout destination', i.payout_account ? `${i.payout_method || ''} ${i.payout_account}` : 'Not provided'],
-          ['Guarantor', i.guarantor_username || i.legacy_referrer_username || 'None'], ['Guarantor earnings', i.guarantor_profit != null ? formatMoney(i.guarantor_profit) : '—'],
+          ['Guarantor', i.guarantor_username ? <>{i.guarantor_username}{i.guarantor_is_fallback && <span className="badge info" style={{ marginLeft: 8 }}>fallback share</span>}</> : i.legacy_referrer_username || 'None'], ['Guarantor earnings', i.guarantor_profit != null ? formatMoney(i.guarantor_profit) : '—'],
           ['Business profit', i.business_profit != null ? formatMoney(i.business_profit) : '—'], ['Reviewed by', i.reviewed_by_username || '—'],
           ['Payment account', i.account_name ? `${i.account_name} (ID ${i.payment_account_id})` : '—'],
         ]} /></div></div>

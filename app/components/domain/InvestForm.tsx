@@ -45,7 +45,7 @@ export function InvestForm({ need }: { need: any }) {
       toast.success(r.duplicate ? 'This investment was already submitted.' : 'Investment submitted for verification.');
       router.push(`/investments/${r.investment.id}`);
     } catch (e: any) {
-      if (e instanceof ApiFail && ['ACCOUNT_CHANGED', 'NO_ACCOUNT', 'NEED_FULL', 'OVER_REMAINING'].includes(e.code || '')) { setBanner(e.message); refetch(); setConfirm(false); return; }
+      if (e instanceof ApiFail && ['ACCOUNT_CHANGED', 'NO_ACCOUNT', 'NEED_FULL', 'OVER_REMAINING', 'BELOW_MIN'].includes(e.code || '')) { setBanner(e.message); refetch(); setConfirm(false); return; }
       throw e;
     }
   }
@@ -56,7 +56,7 @@ export function InvestForm({ need }: { need: any }) {
           <ProgressBar funded={need.funded_amount} total={need.total_capital} />
           <KV items={[['Product / quality', need.product], ['Quantity', `${Number(need.quantity).toLocaleString()} bottles`], ['Cost per bottle', <MoneyDisplay value={need.cost_price} key="c" />],
             ['Sell price per bottle', <MoneyDisplay value={need.sell_price} key="s" />], ['Your profit share', pct(need.investor_pct)],
-            ['Return per bottle funded', <MoneyDisplay value={need.calc?.investor_return_per_bottle} key="r" />], ['Return on principal', pct(need.calc?.investor_return_pct)], ['Payout', 'Exactly 7 days (168 hours) after we verify your payment']]} />
+            ['Return per bottle funded', <MoneyDisplay value={need.calc?.investor_return_per_bottle} key="r" />], ['Return on principal', pct(need.calc?.investor_return_pct)], ['Minimum investment', Number(need.min_investment) > 0 ? <MoneyDisplay value={need.min_investment} key="m" /> : 'None'], ['Payout', 'Exactly 7 days (168 hours) after we verify your payment']]} />
           {need.description && <p className="muted">{need.description}</p>}
         </div>
       </div>
@@ -68,7 +68,7 @@ export function InvestForm({ need }: { need: any }) {
           {loading && !q ? <LoadingState rows={3} /> : error ? <ErrorState message={error} onRetry={refetch} /> : q && (<>
             {q.account ? <div><div className="small muted" style={{ fontWeight: 600, marginBottom: 6 }}>1 · Send your payment to this account</div><AccountBox a={q.account} /></div>
               : <div className="notice bad" role="alert">{q.unavailable_message || 'No payment account is currently available for this funding need. Please try again later.'}</div>}
-            <Field label="2 · Amount you sent (PKR)" hint={`You can invest up to ${formatMoney(q.max_amount)} right now.`} error={valid && q.amount_error ? q.amount_error : undefined}>
+            <Field label="2 · Amount you sent (PKR)" hint={`${Number(q.min_amount) > 0 ? `Minimum ${formatMoney(q.min_amount)} · ` : ''}You can invest up to ${formatMoney(q.max_amount)} right now.`} error={valid && q.amount_error ? q.amount_error : undefined}>
               <div className="input-affix"><span className="pre">PKR</span><input className="input" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0" disabled={full || !q.account && !amount} /></div>
             </Field>
             {q.calc && valid && (

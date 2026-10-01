@@ -61,17 +61,38 @@ export async function getSettings() {
   const rows = await query('SELECT key, value FROM settings');
   const s: Record<string, any> = {};
   for (const r of rows) s[r.key] = r.value;
-  return { near_limit_pct: Number(s.near_limit_pct ?? 90), timezone: APP_TIMEZONE, payout_cycle_hours: 168, overdue_after_hours: 24 };
+  const candidates = await query(`SELECT id, username, full_name, roles FROM users WHERE is_active AND ('ADMIN' = ANY(roles) OR 'GUARANTOR' = ANY(roles)) ORDER BY username`);
+  return {
+    near_limit_pct: Number(s.near_limit_pct ?? 90), fallback_guarantor_id: s.fallback_guarantor_id ? Number(s.fallback_guarantor_id) : null, candidates,
+    timezone: APP_TIMEZONE, payout_cycle_hours: 168, overdue_after_hours: 24,
+  };
 }
 export async function updateSettings(admin: CurrentUser, body: any) {
-  const pct = Number(body?.near_limit_pct);
-  if (!Number.isInteger(pct) || pct < 50 || pct > 100) throw bad('Near-limit threshold must be a whole number between 50 and 100');
-  return tx(async t => {
-    const [cur] = await t.q(`SELECT value FROM settings WHERE key = 'near_limit_pct'`);
-    await t.q(`INSERT INTO settings (key, value, updated_by, updated_at) VALUES ('near_limit_pct', $1::jsonb, $2, now()) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_by = EXCLUDED.updated_by, updated_at = now()`, [JSON.stringify(pct), admin.id]);
-    await audit(t, admin.id, 'settings.changed', 'settings', 'near_limit_pct', { from: cur?.value ?? null, to: pct });
-    return getSettings();
+  await tx(async t => {
+    const put = async (key: string, value: any) => {
+      const [cur] = await t.q('SELECT value FROM settings WHERE key = $1', [key]);
+      await t.q(`INSERT INTO settings (key, value, updated_by, updated_at) VALUES ($1, $2::jsonb, $3, now()) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_by = EXCLUDED.updated_by, updated_at = now()`, [key, JSON.stringify(value), admin.id]);
+      await audit(t, admin.id, 'settings.changed', 'settings', key, { from: cur?.value ?? null, to: value });
+    };
+    if (body?.near_limit_pct !== undefined) {
+      const pct = Number(body.near_limit_pct);
+      if (!Number.isInteger(pct) || pct < 50 || pct > 100) throw bad('Near-limit threshold must be a whole number between 50 and 100');
+      await put('near_limit_pct', pct);
+    }
+    if (body?.fallback_guarantor_id !== undefined) {
+      const id = body.fallback_guarantor_id === null || body.fallback_guarantor_id === '' ? null : Number(body.fallback_guarantor_id);
+      if (id !== null) {
+        const [u] = await t.q('SELECT id, roles, is_active FROM users WHERE id = $1 FOR UPDATE', [id]);
+        if (!u || !u.is_active || !(u.roles.includes('ADMIN') || u.roles.includes('GUARANTOR'))) throw bad('Choose an active admin or guarantor account');
+        if (!u.roles.includes('GUARANTOR')) { // so they can see the earnings, payments and claims screens
+          await t.q(`UPDATE users SET roles = array_append(roles, 'GUARANTOR'), updated_at = now() WHERE id = $1`, [id]);
+          await audit(t, admin.id, 'guarantor.role_granted', 'user', id, { reason: 'fallback guarantor' });
+        }
+      }
+      await put('fallback_guarantor_id', id);
+    }
   });
+  return getSettings(); // read after commit
 }
 
 export async function investorDashboard(userId: number) {

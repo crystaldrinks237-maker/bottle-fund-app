@@ -1,5 +1,9 @@
 import { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
+import GoogleProvider from 'next-auth/providers/google';
+import { decode } from 'next-auth/jwt';
+import { cookies } from 'next/headers';
+import { resolveGoogleUser } from './google';
 import bcrypt from 'bcryptjs';
 import { query } from './db';
 
@@ -8,10 +12,14 @@ const LOCK_MINUTES = 15;
 // Constant-time-ish decoy so unknown usernames cost the same as wrong passwords.
 const DECOY = '$2a$12$C6UzMDM.H6dfI/f/IKcEeO5nZ3vB5x1o0kP5m5cTkq5tQe4cQ9x8K';
 
+export const googleEnabled = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+export const LINK_COOKIE = 'cd_google_link';
+
 export const authOptions: NextAuthOptions = {
   session: { strategy: 'jwt', maxAge: 60 * 60 * 12 },
   pages: { signIn: '/login' },
   providers: [
+    ...(googleEnabled ? [GoogleProvider({ clientId: process.env.GOOGLE_CLIENT_ID!, clientSecret: process.env.GOOGLE_CLIENT_SECRET! })] : []),
     CredentialsProvider({
       name: 'Credentials',
       credentials: { username: { label: 'Username', type: 'text' }, password: { label: 'Password', type: 'password' } },
@@ -37,6 +45,23 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
+    async signIn({ user, account, profile }) {
+      if (account?.provider !== 'google') return true;
+      // A signed, 10-minute "link intent" cookie is set only by /api/me/google-link for a logged-in user.
+      let linkUserId: number | null = null;
+      try {
+        const jar = cookies(); const raw = jar.get(LINK_COOKIE)?.value;
+        if (raw) {
+          const t: any = await decode({ token: raw, secret: process.env.NEXTAUTH_SECRET! });
+          if (t?.purpose === 'google-link' && Number.isInteger(t.uid)) linkUserId = t.uid;
+          try { jar.delete(LINK_COOKIE); } catch {}
+        }
+      } catch {}
+      const r = await resolveGoogleUser(profile as any, linkUserId);
+      if ('error' in r) return `/${linkUserId ? 'profile' : 'login'}?error=${r.error}`;
+      (user as any).id = String(r.id);
+      return true;
+    },
     // Only the id is trusted from the token; everything else is looked up server-side per request (lib/session.ts).
     async jwt({ token, user }) { if (user) token.id = (user as any).id; return token; },
     async session({ session, token }) { if (session.user) (session.user as any).id = token.id; return session; },

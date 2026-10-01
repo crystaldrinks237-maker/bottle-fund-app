@@ -57,6 +57,7 @@ export async function quoteInvestment(needId: number, amountRaw: string | null) 
       amt = toPaisa(amountRaw);
       if (amt <= 0n) throw new Error('Enter an amount greater than zero');
       if (amt > toPaisa(need.remaining_amount)) amountError = `Only ${formatMoney(need.remaining_amount)} is still needed.`;
+      else if (amt < toPaisa(need.min_investment) && amt !== toPaisa(need.remaining_amount)) amountError = `The minimum investment is ${formatMoney(need.min_investment)}.`;
       else calc = calcInvestment(need, amt);
       if (!amountError) calc = { ...calc, investor_profit_pct: need.investor_pct };
     } catch (e: any) { amountError = e.message; amt = 1n; }
@@ -75,7 +76,7 @@ export async function quoteInvestment(needId: number, amountRaw: string | null) 
   return {
     account: eligible[0] ? accountPublic(eligible[0]) : null,
     max_amount: fromPaisa(maxAmt < 0n ? 0n : maxAmt),
-    remaining_amount: need.remaining_amount,
+    remaining_amount: need.remaining_amount, min_amount: need.min_investment,
     calc, amount_error: amountError,
     unavailable_message: !eligible[0] && !amountError ? NO_ACCOUNT_MSG : null,
     server_now: (await query('SELECT now() AS now'))[0].now,
@@ -124,6 +125,10 @@ export async function submitInvestment(user: CurrentUser, form: FormData) {
       if (need.status === 'FULL') throw conflict('This funding need has just been fully funded.', 'NEED_FULL');
       if (need.status !== 'OPEN') throw conflict('This funding need is not open for investment.', 'NEED_NOT_OPEN');
       if (amountPaisa > toPaisa(need.remaining_amount)) throw conflict(`Only ${formatMoney(need.remaining_amount)} is still needed. Please lower your amount.`, 'OVER_REMAINING');
+
+      const minInv = toPaisa(need.min_investment);
+      if (amountPaisa < minInv && amountPaisa !== toPaisa(need.remaining_amount))
+        throw conflict(`The minimum investment for this funding need is ${formatMoney(need.min_investment)}.`, 'BELOW_MIN');
 
       // Lock every candidate account in a fixed (id) order, then choose by priority. Serialises concurrent submitters per account.
       const cands = await t.q(ACCT_CAND_SQL.replace('ORDER BY pa.id', 'ORDER BY pa.id FOR UPDATE OF pa'), [needId]);
@@ -174,18 +179,29 @@ export async function verifyInvestment(admin: CurrentUser, id: number) {
     if (!i) throw notFound('Investment not found');
     if (i.status !== 'PENDING_VERIFICATION') throw conflict(`This investment is already ${i.status.toLowerCase().replace(/_/g, ' ')}.`, 'ALREADY_PROCESSED');
     const c = calcInvestment({ cost_price: i.snap_cost_price, sell_price: i.snap_sell_price, op_cost: i.snap_op_cost, investor_pct: i.snap_investor_pct, guarantor_pct: i.snap_guarantor_pct }, i.amount);
+    // No guarantor on the investment → credit the guarantor share to the admin-chosen fallback account (Settings).
+    let gid: number | null = i.guarantor_id, isFallback = false;
+    if (!gid) {
+      const [st] = await t.q(`SELECT value #>> '{}' AS v FROM settings WHERE key = 'fallback_guarantor_id'`);
+      const fid = st?.v ? parseInt(st.v, 10) : 0;
+      if (fid && fid !== i.investor_id) {
+        const [fu] = await t.q(`SELECT id FROM users WHERE id = $1 AND is_active AND 'GUARANTOR' = ANY(roles)`, [fid]);
+        if (fu) { gid = fu.id; isFallback = true; }
+      }
+    }
     // verified_at and due_at come from the database clock, in one statement: due_at = verified_at + exactly 168 hours.
     const [row] = await t.q(
       `UPDATE investments SET status = 'VERIFIED', verified_at = now(), due_at = now() + interval '168 hours', reviewed_by = $2,
-              expected_investor_profit = $3, expected_total_return = $4, guarantor_profit = $5, business_profit = $6, updated_at = now()
+              expected_investor_profit = $3, expected_total_return = $4, guarantor_profit = $5, business_profit = $6,
+              guarantor_id = $7, guarantor_is_fallback = $8, updated_at = now()
         WHERE id = $1 RETURNING *`,
-      [id, admin.id, c.investor_profit, c.total_return, i.guarantor_id ? c.guarantor_profit : '0.00', c.business_profit]);
+      [id, admin.id, c.investor_profit, c.total_return, gid ? c.guarantor_profit : '0.00', c.business_profit, gid, isFallback]);
     await t.q(`INSERT INTO payouts (investment_id, investor_id, amount, principal, profit, status, due_at) VALUES ($1,$2,$3,$4,$5,'DUE',$6)`,
       [id, i.investor_id, c.total_return, i.amount, c.investor_profit, row.due_at]);
-    await audit(t, admin.id, 'investment.verified', 'investment', id, { amount: i.amount, verified_at: row.verified_at, due_at: row.due_at, expected_total_return: c.total_return });
+    await audit(t, admin.id, 'investment.verified', 'investment', id, { amount: i.amount, verified_at: row.verified_at, due_at: row.due_at, expected_total_return: c.total_return, ...(i.investor_id === admin.id ? { self_review: true } : {}) });
     await notify(t, i.investor_id, { type: 'PAYMENT_VERIFIED', title: 'Payment verified', body: `Your ${formatMoney(i.amount)} investment is confirmed. Payout of ${formatMoney(c.total_return)} is due on ${formatDateTime(row.due_at)}.`, link: `/investments/${id}` });
-    if (i.guarantor_id && toPaisa(c.guarantor_profit) > 0n)
-      await notify(t, i.guarantor_id, { type: 'REFERRAL_VERIFIED', title: 'A referred investment was verified', body: `Earnings of ${formatMoney(c.guarantor_profit)} added to this month.`, link: '/guarantor' });
+    if (gid && toPaisa(c.guarantor_profit) > 0n)
+      await notify(t, gid, { type: 'REFERRAL_VERIFIED', title: isFallback ? 'Fallback guarantor share credited' : 'A referred investment was verified', body: `Earnings of ${formatMoney(c.guarantor_profit)} added to this month.`, link: '/guarantor' });
     return row;
   });
 }
@@ -204,7 +220,7 @@ export async function rejectInvestment(admin: CurrentUser, id: number, rawReason
       await t.q('SELECT 1 FROM payment_accounts WHERE id = $1 FOR UPDATE', [i.payment_account_id]);
       await t.q('UPDATE payment_accounts SET allocated_amount = GREATEST(0, allocated_amount - $2), updated_at = now() WHERE id = $1', [i.payment_account_id, i.amount]);
     }
-    await audit(t, admin.id, 'investment.rejected', 'investment', id, { amount: i.amount, reason });
+    await audit(t, admin.id, 'investment.rejected', 'investment', id, { amount: i.amount, reason, ...(i.investor_id === admin.id ? { self_review: true } : {}) });
     await notify(t, i.investor_id, { type: 'PAYMENT_REJECTED', title: 'Payment could not be verified', body: `Reason: ${reason}`, link: `/investments/${id}` });
     return row;
   });
@@ -215,7 +231,7 @@ const INV_LIST_SELECT = `
   i.id, i.funding_need_id, i.investor_id, i.amount, i.status, ${EFF} AS display_status, i.created_at, i.verified_at, i.due_at,
   i.snap_title, i.snap_product, i.snap_cost_price, i.snap_sell_price, i.snap_op_cost, i.snap_investor_pct, i.snap_guarantor_pct,
   i.expected_total_return, i.expected_investor_profit, i.guarantor_profit, i.rejection_reason,
-  i.payment_account_id, i.payment_snapshot ->> 'account_name' AS account_name, i.proof_id,
+  i.guarantor_is_fallback, i.payment_account_id, i.payment_snapshot ->> 'account_name' AS account_name, i.proof_id,
   u.username AS investor_username, g.username AS guarantor_username,
   p.id AS payout_id, p.status AS payout_status, p.transaction_id, p.paid_at`;
 const INV_FROM = `FROM investments i JOIN users u ON u.id = i.investor_id LEFT JOIN users g ON g.id = i.guarantor_id LEFT JOIN payouts p ON p.investment_id = i.id`;
@@ -224,7 +240,7 @@ export async function listInvestments(user: CurrentUser, url: URL, opts: { force
   await materializeDue();
   const { page, size, offset } = pageParams(url);
   const w = new Where();
-  const admin = isAdmin(user);
+  const admin = isAdmin(user) && url.searchParams.get('scope') !== 'mine';
   if (!admin) w.add('i.investor_id = ?', user.id);
   if (opts.forceNeedId) w.add('i.funding_need_id = ?', opts.forceNeedId);
   const sp = url.searchParams;
@@ -244,7 +260,7 @@ export async function listInvestments(user: CurrentUser, url: URL, opts: { force
   const rows = await query(`SELECT ${INV_LIST_SELECT} ${INV_FROM} ${w.sql} ORDER BY ${order}, i.id DESC LIMIT ${limit} OFFSET ${opts.unpaged ? 0 : offset}`, w.params);
   const safe = rows.map((r: any) => {
     const x = withExpected(r);
-    if (!admin) { delete x.guarantor_profit; delete x.guarantor_username; delete x.snap_guarantor_pct; }
+    if (!admin) { delete x.guarantor_profit; delete x.guarantor_username; delete x.snap_guarantor_pct; delete x.guarantor_is_fallback; }
     return x;
   });
   return { rows: safe, total: count, total_amount, page, size };
@@ -264,7 +280,7 @@ export async function getInvestment(user: CurrentUser, id: number) {
   if (!r) throw notFound('Investment not found');
   const out: any = withExpected(r);
   if (!admin) {
-    for (const k of ['guarantor_profit', 'guarantor_username', 'snap_guarantor_pct', 'business_profit', 'reviewed_by', 'reviewed_by_username', 'processed_by', 'investor_phone', 'payout_method', 'payout_account', 'investor_full_name']) delete out[k];
+    for (const k of ['guarantor_is_fallback', 'guarantor_profit', 'guarantor_username', 'snap_guarantor_pct', 'business_profit', 'reviewed_by', 'reviewed_by_username', 'processed_by', 'investor_phone', 'payout_method', 'payout_account', 'investor_full_name']) delete out[k];
   } else {
     out.claims = await query(`SELECT c.id, c.status, c.reason, c.created_at FROM payment_claims c JOIN payouts p ON p.id = c.payout_id WHERE p.investment_id = $1 ORDER BY c.created_at DESC`, [id]);
   }

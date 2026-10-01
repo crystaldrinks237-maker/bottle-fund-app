@@ -29,13 +29,3 @@ export function useApi<T = any>(url: string | null) {
   useEffect(() => { load(); }, [load]);
   return { ...state, reload: () => load(true), refetch: () => load(false) };
 }
-
-/** Admin-only: start viewing the app as another user, then load their landing page. */
-export async function viewAsUser(userId: number, landing?: 'investor' | 'guarantor') {
-  const r = await api<{ redirect: string }>('/api/admin/impersonate', { method: 'POST', json: { user_id: userId, landing } });
-  window.location.href = r.redirect; // full reload so every server layout re-reads the identity
-}
-export async function stopViewingAs(to = '/admin') {
-  await api('/api/admin/impersonate', { method: 'DELETE' });
-  window.location.href = to;
-}

@@ -44,10 +44,20 @@ Required (unchanged): `DATABASE_URL`, `NEXTAUTH_URL`, `NEXTAUTH_SECRET`. Optiona
 5. Deploy. In Vercel confirm the three required env vars (NEXTAUTH_URL = your production URL). Migrations are deliberately **not** run in the Vercel build.
 Imported data notes: weeks become funding needs titled "Week #N – quality"; imported payouts marked returned have no transaction ID; referrers who had no account remain as text (`legacy_referrer_username`) — create them as guarantors and use Admin → Investors → Set guarantor going forward.
 
-## Human / business decisions still open
-1. **Guarantor share with no guarantor**: the model is unchanged from the prototype (guarantor % is carved out of profit). For investors without a guarantor the platform records guarantor profit as 0 and it remains in "business profit" — confirm that is intended.
-2. **Guarantor earning month**: attributed by the investment's *verification* date (app timezone); unsettled earnings roll into the next settlement. The prototype's rule wasn't documented in code, so confirm (alternative: recognise on payout).
-3. **"Overdue"** = 24h past due (my assumption); change in `lib/services/payouts.ts` / `admin.ts`.
-4. Payout destinations (Easypaisa/bank) are a new profile field for investors and guarantors — the prototype had nowhere to send money.
-5. Duplicate-screenshot rejection and one-time guarantor self-selection are my additions.
-6. Minimum investment amount and 2FA for admins are not implemented.
+## Decisions you confirmed (now implemented)
+- **No-guarantor share → you.** Admin → Settings → *Fallback guarantor*. When an investment is verified and the investor has no guarantor, the guarantor share is credited to the chosen account (your admin account gets the Guarantor role automatically so you see a "Guarantor" menu with earnings, monthly payments and claims). It uses the normal settlement flow, is marked "fallback share" on the investment, and only applies to investments verified *after* you set it. Choose "None" to send the share back to business profit. Investments verified before you turn it on are not changed.
+- **Guarantor earning month**: verification date; unsettled earnings roll into the next settlement (tested).
+- **Overdue** = 24h past due. **Payout destination** fields on profiles.
+- **Minimum investment** is set per funding need (New/Edit funding need form). The final remaining slice of a need may be smaller than the minimum so a need can always be filled. Editable even after investments exist.
+
+## Google sign-in
+Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in Vercel (Google Cloud Console → Credentials → OAuth client, type Web; authorised redirect URI `https://<your-domain>/api/auth/callback/google`). The Google buttons appear automatically once both are set; without them nothing changes.
+Security design: Google email must be verified by Google; email is stored only from Google (never typed in); an existing password account is **never** linked automatically by matching email — the owner signs in with their password and clicks *Connect Google* in Profile (a signed 10-minute intent cookie ties the link to them). New Google users become INVESTORs only; admins/guarantors link Google themselves after being created. Google-created accounts have no password until they set one in Profile (they can't disconnect Google before that). `ALLOW_SIGNUP=false` also blocks Google sign-ups.
+Note: the Google OAuth round-trip itself can't be tested without real credentials; the account-resolution rules are tested (`npx tsx scripts/google-test.ts`), but please try one real sign-in and one "Connect Google" after configuring it.
+
+## Still to do later
+- **Two-step verification** (planned for when the domain/email exist). Until then, give admin accounts a long unique password; once you connect Google to the admin account, Google's own 2-step verification protects that sign-in path too (but the password path stays open — don't skip real 2FA).
+- Email notifications/password reset need a sender domain too.
+
+## Migration addendum
+New migration `003_min_investment_fallback_google.sql` (adds `funding_needs.min_investment`, `investments.guarantor_is_fallback`, `users.email/google_sub/has_password`). `npm run db:migrate` applies 001–003 in order.

@@ -4,7 +4,7 @@ import { audit } from '../audit';
 import { bad, conflict, notFound, Where, likeTerm, pageParams, sortParam } from '../api';
 import { calcNeed, validatePricing } from '../calc';
 import { needSchema, reasonSchema } from '../validators';
-import { toPaisa } from '../money';
+import { toPaisa, fromPaisa } from '../money';
 import type { CurrentUser } from '../session';
 import { ACCOUNT_SELECT } from './accounts';
 
@@ -30,7 +30,7 @@ export async function listNeedsAdmin(url: URL) {
 export async function listNeedsInvestor() {
   const rows = await query(
     `SELECT fn.id, fn.title, fn.product, fn.description, fn.quantity, fn.cost_price, fn.sell_price, fn.op_cost, fn.investor_pct,
-            fn.total_capital, fn.funded_amount, fn.remaining_amount, fn.status, fn.opened_at, fn.guarantor_pct,
+            fn.total_capital, fn.funded_amount, fn.remaining_amount, fn.status, fn.opened_at, fn.guarantor_pct, fn.min_investment,
             (SELECT COUNT(*) FROM funding_need_accounts f JOIN payment_accounts p ON p.id = f.payment_account_id WHERE f.funding_need_id = fn.id AND p.status='ACTIVE')::int AS active_accounts
        FROM funding_needs fn WHERE fn.status IN ('OPEN','FULL') ORDER BY fn.opened_at DESC NULLS LAST, fn.id DESC`);
   return { rows: rows.map(investorNeedView) };
@@ -91,13 +91,15 @@ export async function createNeed(user: CurrentUser, raw: unknown) {
   const v: any = needSchema.parse(raw);
   const p = validatePricing(v);
   const c = calcNeed({ ...v, ...p });
+  const minInv = fromPaisa(toPaisa(v.min_investment ?? '0'));
+  if (toPaisa(minInv) < 0n || toPaisa(minInv) > toPaisa(c.total_capital)) throw bad('Minimum investment must be between 0 and the required capital');
   if (v.open_now && !(v.account_ids && v.account_ids.length)) throw bad('Assign at least one payment account before opening a funding need.');
   return tx(async t => {
     const [row] = await t.q(
-      `INSERT INTO funding_needs (title, product, description, quantity, cost_price, sell_price, op_cost, investor_pct, guarantor_pct, total_capital, status, opened_at, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
+      `INSERT INTO funding_needs (title, product, description, quantity, cost_price, sell_price, op_cost, investor_pct, guarantor_pct, total_capital, status, opened_at, created_by, min_investment)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
       [v.title, v.product, v.description || null, v.quantity, p.cost_price, p.sell_price, p.op_cost, p.investor_pct, p.guarantor_pct, c.total_capital,
-       v.open_now ? 'OPEN' : 'DRAFT', v.open_now ? new Date() : null, user.id]);
+       v.open_now ? 'OPEN' : 'DRAFT', v.open_now ? new Date() : null, user.id, minInv]);
     if (v.account_ids?.length) await assignAccounts(t, user, row.id, v.account_ids);
     await audit(t, user.id, 'funding_need.created', 'funding_need', row.id, { title: v.title, total_capital: c.total_capital, status: row.status });
     return row;
@@ -118,17 +120,19 @@ export async function updateNeed(user: CurrentUser, id: number, raw: unknown) {
     if (pricingChanged && n > 0)
       throw conflict('Pricing and profit shares are locked because investments already exist for this funding need. Existing investments keep their original terms; create a new funding need for new terms.');
     const c = calcNeed({ ...v, ...p });
+    const minInv = fromPaisa(toPaisa(v.min_investment ?? '0'));
+    if (toPaisa(minInv) < 0n || toPaisa(minInv) > toPaisa(c.total_capital)) throw bad('Minimum investment must be between 0 and the required capital');
     if (toPaisa(c.total_capital) < toPaisa(cur.funded_amount))
       throw conflict(`Required capital cannot drop below the PKR ${cur.funded_amount} already committed.`);
     const status = cur.status === 'OPEN' && toPaisa(c.total_capital) === toPaisa(cur.funded_amount) ? 'FULL'
       : cur.status === 'FULL' && toPaisa(c.total_capital) > toPaisa(cur.funded_amount) ? 'OPEN' : cur.status;
     const [row] = await t.q(
       `UPDATE funding_needs SET title=$2, product=$3, description=$4, quantity=$5, cost_price=$6, sell_price=$7, op_cost=$8, investor_pct=$9,
-              guarantor_pct=$10, total_capital=$11, status=$12, updated_at=now() WHERE id=$1 RETURNING *`,
-      [id, v.title, v.product, v.description || null, v.quantity, p.cost_price, p.sell_price, p.op_cost, p.investor_pct, p.guarantor_pct, c.total_capital, status]);
+              guarantor_pct=$10, total_capital=$11, status=$12, min_investment=$13, updated_at=now() WHERE id=$1 RETURNING *`,
+      [id, v.title, v.product, v.description || null, v.quantity, p.cost_price, p.sell_price, p.op_cost, p.investor_pct, p.guarantor_pct, c.total_capital, status, minInv]);
     if (v.account_ids) await assignAccounts(t, user, id, v.account_ids);
     const changed: Record<string, [any, any]> = {};
-    for (const k of ['title', 'product', 'description', 'quantity', 'cost_price', 'sell_price', 'op_cost', 'investor_pct', 'guarantor_pct', 'total_capital'])
+    for (const k of ['title', 'product', 'description', 'quantity', 'cost_price', 'sell_price', 'op_cost', 'investor_pct', 'guarantor_pct', 'total_capital', 'min_investment'])
       if (String(cur[k] ?? '') !== String(row[k] ?? '')) changed[k] = [cur[k], row[k]];
     await audit(t, user.id, 'funding_need.updated', 'funding_need', id, { changed });
     return row;
