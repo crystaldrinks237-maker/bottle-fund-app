@@ -16,6 +16,7 @@ const P: Record<string, string> = {
   alert: 'M12 3 2 20h20zM12 10v4M12 17v.01', chev: 'M6 9l6 6 6-6', logout: 'M9 21H5V3h4M16 17l5-5-5-5M21 12H9', user: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0',
   plus: 'M12 5v14M5 12h14', copy: 'M9 9h11v11H9zM5 15V4h11', clock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2', eye: 'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
   sort: 'M8 9l4-4 4 4M8 15l4 4 4-4',
+  star: 'M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z',
 };
 export function Icon({ name, size }: { name: string; size?: number }) {
   return (

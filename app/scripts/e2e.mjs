@@ -374,4 +374,48 @@ ok(home.status === 200 && /Profit calculator|See what you/.test(home.data) && /H
 ok(!/cost_price|sell_price|op_cost/.test(home.data), 'welcome page HTML exposes no private pricing');
 ok((await admin.req('/')).status === 307, 'signed-in users are sent on to their dashboard');
 ok((await pub.req('/admin')).status === 307 && (await pub.req('/dashboard')).status === 307, 'protected areas still redirect visitors to sign-in');
+section('New: testimonials (real customers only, approval required)');
+const html0 = (await pub.req('/')).data;
+ok(!/What our investors say/.test(html0), 'with no approved reviews the welcome page shows NO testimonial section (no placeholders)');
+ok((await inv2.req('/api/testimonials/mine')).data.eligible === false, 'investor without a payout is not eligible to review');
+ok((await inv2.req('/api/testimonials', { method: 'POST', json: { display_name: 'Ali K.', rating: 5, body: 'Great experience with the platform overall.', consent: true } })).status === 403, '…and cannot post one');
+ok((await pub.req('/api/testimonials', { method: 'POST', json: {} })).status === 401, 'anonymous cannot post');
+ok((await inv1.req('/api/testimonials/mine')).data.eligible === true, 'investor who has been paid out is eligible');
+const good = { display_name: 'Ahmed R.', city: 'Lahore', rating: 5, body: 'My payout arrived on the exact day with a transaction ID. Process was easy.', consent: true };
+ok((await inv1.req('/api/testimonials', { method: 'POST', json: { ...good, consent: false } })).status === 400, 'consent is required');
+ok((await inv1.req('/api/testimonials', { method: 'POST', json: { ...good, rating: 0 } })).status === 400 && (await inv1.req('/api/testimonials', { method: 'POST', json: { ...good, rating: 6 } })).status === 400, 'rating must be 1–5');
+ok((await inv1.req('/api/testimonials', { method: 'POST', json: { ...good, body: 'too short' } })).status === 400, 'very short reviews rejected');
+ok((await inv1.req('/api/testimonials', { method: 'POST', json: good })).status === 200, 'eligible investor submits a review');
+ok(!(await pub.req('/')).data.includes('payout arrived on the exact day'), 'pending review is NOT public');
+try { await db.query(`INSERT INTO testimonials (source, display_name, rating, body, consent_display) VALUES ('ADMIN_ENTERED','Zed Zed',5,'twenty characters at least here',false)`); ok(false, 'DB refuses a testimonial without consent'); } catch { ok(true, 'DB refuses a testimonial stored without consent'); }
+ok((await inv1.req('/api/testimonials')).status === 403, 'investors cannot list all testimonials');
+const tid = (await sql(`SELECT id FROM testimonials WHERE display_name='Ahmed R.'`))[0].id;
+ok((await inv1.req(`/api/testimonials/${tid}`, { method: 'PATCH', json: { action: 'approve' } })).status === 403, 'investor cannot approve their own review');
+ok((await admin.req(`/api/testimonials/${tid}`, { method: 'PATCH', json: { action: 'approve' } })).status === 200, 'admin approves');
+const html1 = (await pub.req('/')).data;
+ok(html1.includes('What our investors say') && html1.includes('payout arrived on the exact day') && html1.includes('Ahmed R.') && html1.includes('Lahore') && html1.includes('Verified investor'), 'approved review appears on the welcome page with name, city and “Verified investor”');
+ok(!html1.includes('inv1' + S) && !/investor_id|admin_note/.test(html1), 'public page exposes no username, user id or admin notes');
+ok((await admin.req(`/api/testimonials/${tid}`, { method: 'PATCH', json: { action: 'approve' } })).status === 409, 'approving twice is a clean 409');
+// editing sends it back through approval; hostile text is escaped
+await inv1.req('/api/testimonials', { method: 'POST', json: { ...good, body: '<script>alert(1)</script> Easy process and on-time payout, thank you.' } });
+ok((await inv1.req('/api/testimonials/mine')).data.review.status === 'PENDING' && !(await pub.req('/')).data.includes('payout arrived on the exact day'), 'an edit goes back to PENDING and the old text leaves the public page');
+ok((await sql(`SELECT count(*)::int n FROM testimonials WHERE investor_id=(SELECT id FROM users WHERE username=$1)`, ['inv1' + S]))[0].n === 1, 'still exactly one review per investor');
+await admin.req(`/api/testimonials/${tid}`, { method: 'PATCH', json: { action: 'approve' } });
+const html2 = (await pub.req('/')).data;
+ok(!html2.includes('<script>alert(1)</script>') && html2.includes('&lt;script&gt;'), 'script tags in a review are escaped, never executed');
+// admin-entered
+const adm = { display_name: 'Sana M.', city: 'Karachi', rating: 4, body: 'Simple to follow, and the countdown made it clear when I would be paid.', permission_note: 'WhatsApp message 1 Oct 2026', consent_confirmed: true };
+ok((await admin.req('/api/admin/testimonials', { method: 'POST', json: { ...adm, consent_confirmed: false } })).status === 400 && (await admin.req('/api/admin/testimonials', { method: 'POST', json: { ...adm, permission_note: '' } })).status === 400, 'admin-entered testimonials need consent confirmation AND a permission note');
+ok((await inv1.req('/api/admin/testimonials', { method: 'POST', json: adm })).status === 403, 'non-admin cannot add testimonials for others');
+ok((await admin.req('/api/admin/testimonials', { method: 'POST', json: adm })).status === 200, 'admin adds a permitted customer testimonial');
+await admin.req('/api/admin/testimonials', { method: 'POST', json: { ...adm, display_name: 'Bilal H.', city: 'Islamabad', rating: 5, body: 'Clear updates at every step and a transaction ID for every payout.' } });
+const html3 = (await pub.req('/')).data;
+ok(html3.includes('Sana M.') && html3.includes('Karachi'), 'admin-entered review is published immediately');
+const flat3 = html3.replace(/<!-- -->/g, '');
+ok(/average from 3 reviews/.test(flat3) && flat3.includes('<b>4.7</b>'), 'average (4.7) and count (3) shown once there are at least 3 real reviews');
+ok((html3.match(/>Verified investor<\/span>/g) || []).length === 1, '“Verified investor” appears only on the investor-written review, not on admin-entered ones');
+ok((await sql(`SELECT metadata FROM audit_logs WHERE action='testimonial.created_by_admin' ORDER BY id LIMIT 1`))[0].metadata.permission_note === 'WhatsApp message 1 Oct 2026', 'permission note is kept in the audit log');
+const sid = (await sql(`SELECT id FROM testimonials WHERE display_name='Sana M.'`))[0].id;
+await admin.req(`/api/testimonials/${sid}`, { method: 'PATCH', json: { action: 'reject', note: 'customer asked to remove' } });
+ok(!(await pub.req('/')).data.includes('Sana M.'), 'rejecting/unpublishing removes it from the public page');
 console.log(`\n${pass} passed, ${fail} failed`); await db.end(); process.exit(fail ? 1 : 0);

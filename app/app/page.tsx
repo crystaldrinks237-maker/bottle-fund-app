@@ -6,6 +6,8 @@ import { getCurrentUser } from '@/lib/session';
 import { publicCalculator, publicNeeds } from '@/lib/services/public';
 import { Calculator } from '@/components/landing/Calculator';
 import { ProgressBar } from '@/components/ui/kit';
+import { Stars } from '@/components/ui/Stars';
+import { publicTestimonials } from '@/lib/services/testimonials';
 import { formatMoney } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
@@ -30,13 +32,13 @@ const FAQ = [
 export default async function Welcome() {
   const user = await getCurrentUser();
   if (user) redirect(user.roles.includes('ADMIN') ? '/admin' : user.roles.includes('INVESTOR') ? '/dashboard' : '/guarantor');
-  const [needs, calc] = await Promise.all([publicNeeds(), publicCalculator(null, '50000', null)]);
+  const [needs, calc, reviews] = await Promise.all([publicNeeds(), publicCalculator(null, '50000', null), publicTestimonials()]);
   const ex = needs.find(n => n.status === 'OPEN' && Number(n.guarantor_pct) > 0) || needs.find(n => Number(n.guarantor_pct) > 0); // example only from a need that really pays guarantors
   return (
     <div className="land">
       <header className="land-nav">
         <Link href="/" className="land-brand"><Image src="/logo.png" alt="Crystal Drinks" width={44} height={47} priority /><span>Crystal Drinks</span></Link>
-        <nav aria-label="Sections"><a href="#calculator">Calculator</a><a href="#how">How it works</a><a href="#needs">Open needs</a><a href="#guarantors">Guarantors</a><a href="#faq">FAQ</a></nav>
+        <nav aria-label="Sections"><a href="#calculator">Calculator</a><a href="#how">How it works</a><a href="#needs">Open needs</a><a href="#guarantors">Guarantors</a>{reviews.rows.length > 0 && <a href="#reviews">Reviews</a>}<a href="#faq">FAQ</a></nav>
         <div className="row"><Link className="btn btn-sm" href="/login">Sign in</Link><Link className="btn btn-sm btn-primary" href="/signup">Create account</Link></div>
       </header>
 
@@ -90,6 +92,20 @@ export default async function Welcome() {
             <div className="ex-total"><span>You earn</span><b>{formatMoney((Number(ex.per_100k.guarantor_profit) * 5).toFixed(2))}</b></div>
             <p className="small muted">Calculated at this need’s terms. Try your own numbers in the calculator above.</p></div>)}
       </div></section>
+
+      {reviews.rows.length > 0 && (
+        <section className="land-sec" id="reviews"><div className="land-wrap">
+          <h2 className="sec-title">What our investors say</h2>
+          {reviews.count >= 3 && <p className="sec-sub"><Stars value={Math.round(Number(reviews.average))} /> <b>{Number(reviews.average)}</b> average from {reviews.count} reviews</p>}
+          <div className="testi-grid">{reviews.rows.map((r: any) => (
+            <figure className="testi" key={r.id}>
+              <Stars value={r.rating} />
+              <blockquote>{r.body}</blockquote>
+              <figcaption><b>{r.display_name}</b>{r.city ? <span className="muted">, {r.city}</span> : null}{r.verified && <span className="badge success" style={{ marginLeft: 8 }}>Verified investor</span>}</figcaption>
+            </figure>))}</div>
+          <p className="small muted" style={{ textAlign: 'center', marginTop: 18 }}>Reviews are written by Crystal Drinks customers who agreed to share them. “Verified investor” means they have received a payout through the platform.</p>
+        </div></section>
+      )}
 
       <section className="land-sec alt"><div className="land-wrap trust">
         <div><h3>Every payment verified</h3><p>Our team checks each payment against the proof you upload before your clock starts.</p></div>

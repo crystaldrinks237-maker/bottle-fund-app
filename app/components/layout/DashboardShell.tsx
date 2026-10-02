@@ -15,7 +15,7 @@ const NAV: Record<string, { title: string; items: Item[] }> = {
     { href: '/admin/investments', label: 'Investments', icon: 'wallet' }, { href: '/admin/payment-accounts', label: 'Payment Accounts', icon: 'card' },
     { href: '/admin/investors', label: 'Investors', icon: 'users' }, { href: '/admin/guarantors', label: 'Guarantors', icon: 'shield' },
     { href: '/admin/payouts', label: 'Investor Payouts', icon: 'cash' }, { href: '/admin/guarantor-payments', label: 'Guarantor Payments', icon: 'calendar' },
-    { href: '/admin/claims', label: 'Payment Claims', icon: 'flag' }, { href: '/admin/activity', label: 'Activity Log', icon: 'list' }, { href: '/admin/settings', label: 'Settings', icon: 'gear' } ] },
+    { href: '/admin/claims', label: 'Payment Claims', icon: 'flag' }, { href: '/admin/testimonials', label: 'Testimonials', icon: 'star' }, { href: '/admin/activity', label: 'Activity Log', icon: 'list' }, { href: '/admin/settings', label: 'Settings', icon: 'gear' } ] },
   INVESTOR: { title: 'Investing', items: [
     { href: '/dashboard', label: 'Dashboard', icon: 'dashboard', exact: true }, { href: '/investments', label: 'My Investments', icon: 'wallet' },
     { href: '/funding-needs', label: 'Funding Needs', icon: 'layers' }, { href: '/payouts', label: 'Payouts', icon: 'cash' }, { href: '/profile', label: 'Profile', icon: 'user' } ] },
