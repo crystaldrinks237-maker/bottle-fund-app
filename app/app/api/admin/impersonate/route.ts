@@ -3,31 +3,31 @@ import { z } from 'zod';
 import { handler, readJson, bad, notFound } from '@/lib/api';
 import { query } from '@/lib/db';
 import { audit } from '@/lib/audit';
-import { requireRealUser, getRealUser, makeViewAsCookie, VIEW_AS_COOKIE, VIEW_AS_TTL_SECONDS } from '@/lib/session';
+import { requireRealUser, getRealUser, isViewingAs, makeViewAsCookie, VIEW_AS_COOKIE, VIEW_AS_TTL_SECONDS } from '@/lib/session';
 
 const schema = z.object({ user_id: z.number().int().positive(), landing: z.enum(['investor', 'guarantor']).optional() });
 
-/** Start "View as user". Only a real, signed-in ADMIN may do this, and never for another admin or an inactive account. */
+// Start "view as": admins only, never another admin or yourself, 30 minutes, read-only, recorded in the activity log.
 export const POST = handler(async req => {
   const admin = await requireRealUser('ADMIN');
   const v = schema.parse(await readJson(req));
-  if (v.user_id === admin.id) throw bad('That is your own account. Pick another user to view as.');
-  const [t] = await query<any>('SELECT id, username, roles, is_active FROM users WHERE id = $1', [v.user_id]);
-  if (!t) throw notFound('User not found');
-  if (!t.is_active) throw bad('That account is deactivated.');
-  if (t.roles.includes('ADMIN')) throw bad('You can only view as investors or guarantors, not other administrators.');
-  cookies().set(VIEW_AS_COOKIE, makeViewAsCookie(admin.id, t.id), {
-    httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/', maxAge: VIEW_AS_TTL_SECONDS,
-  });
-  await audit(null, admin.id, 'admin.view_as_started', 'user', t.id, { username: t.username });
-  const guarantorFirst = (v.landing === 'guarantor' && t.roles.includes('GUARANTOR')) || !t.roles.includes('INVESTOR');
-  return { ok: true, redirect: guarantorFirst ? '/guarantor' : '/dashboard' };
-});
+  if (v.user_id === admin.id) throw bad('You are already signed in as yourself.');
+  const [u] = await query<any>('SELECT id, username, roles, is_active FROM users WHERE id = $1', [v.user_id]);
+  if (!u) throw notFound('User not found');
+  if (u.roles.includes('ADMIN')) throw bad('You cannot view another administrator’s account.');
+  if (!u.is_active) throw bad('That account is disabled.');
+  cookies().set(VIEW_AS_COOKIE, await makeViewAsCookie(admin.id, u.id), { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/', maxAge: VIEW_AS_TTL_SECONDS });
+  await audit(null, admin.id, 'admin.view_as_started', 'user', u.id, { target: u.username, minutes: VIEW_AS_TTL_SECONDS / 60 });
+  const guarantorOnly = u.roles.includes('GUARANTOR') && !u.roles.includes('INVESTOR');
+  return { redirect: v.landing === 'guarantor' || (guarantorOnly && v.landing !== 'investor') ? '/guarantor' : '/dashboard', expires_in: VIEW_AS_TTL_SECONDS };
+}, { allowWhileViewing: true });
 
-/** Stop viewing. Clearing the cookie is harmless, so any signed-in user may call it (used on sign-out too). */
 export const DELETE = handler(async () => {
-  const real = await getRealUser();
+  const admin = await requireRealUser('ADMIN');
+  const was = await isViewingAs();
   cookies().set(VIEW_AS_COOKIE, '', { httpOnly: true, sameSite: 'lax', path: '/', maxAge: 0 });
-  if (real?.roles.includes('ADMIN')) await audit(null, real.id, 'admin.view_as_ended', 'user', real.id);
-  return { ok: true };
-});
+  if (was) await audit(null, admin.id, 'admin.view_as_ended', 'user', null, {});
+  return { redirect: '/admin' };
+}, { allowWhileViewing: true });
+
+export const GET = handler(async () => ({ viewing: await isViewingAs(), real: !!(await getRealUser()) }));

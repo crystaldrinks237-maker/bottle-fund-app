@@ -70,7 +70,7 @@ export async function listGuarantors(url: URL) {
   const order = sortParam(url, { username: 'u.username', earnings: 'lifetime', created: 'u.created_at' }, 'username');
   const [{ count }] = await query(`SELECT COUNT(*)::int AS count FROM users u ${w.sql}`, w.params);
   const rows = await query(
-    `SELECT u.id, u.username, u.full_name, u.phone, u.is_active, u.payout_method, u.payout_account, u.created_at,
+    `SELECT u.id, u.username, u.full_name, u.phone, u.is_active, u.roles, u.payout_method, u.payout_account, u.created_at,
             (SELECT COUNT(*) FROM guarantor_relationships r WHERE r.guarantor_id = u.id)::int AS referred_investors,
             (SELECT COUNT(*) FROM investments i WHERE i.guarantor_id = u.id AND i.status IN ('VERIFIED','PAYOUT_DUE'))::int AS active_investments,
             COALESCE((SELECT SUM(i.guarantor_profit) FROM investments i WHERE i.guarantor_id = u.id AND i.status IN ${EARNING_STATUSES}), 0) AS lifetime,
@@ -89,7 +89,7 @@ export async function listInvestorsAdmin(url: URL) {
   const order = sortParam(url, { username: 'u.username', invested: 'invested', created: 'u.created_at' }, '-created');
   const [{ count }] = await query(`SELECT COUNT(*)::int AS count FROM users u ${w.sql}`, w.params);
   const rows = await query(
-    `SELECT u.id, u.username, u.full_name, u.phone, u.is_active, u.created_at, u.payout_method, u.payout_account,
+    `SELECT u.id, u.username, u.full_name, u.phone, u.is_active, u.roles, u.created_at, u.payout_method, u.payout_account,
             g.id AS guarantor_id, g.username AS guarantor_username,
             (SELECT COUNT(*) FROM investments i WHERE i.investor_id = u.id AND i.status <> 'REJECTED')::int AS investments,
             COALESCE((SELECT SUM(i.amount) FROM investments i WHERE i.investor_id = u.id AND i.status IN ${EARNING_STATUSES}), 0) AS invested

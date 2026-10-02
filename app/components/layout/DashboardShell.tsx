@@ -47,13 +47,21 @@ function Bell() {
   );
 }
 
-export function DashboardShell({ user, children }: { user: { username: string; full_name: string | null; roles: string[] }; children: React.ReactNode }) {
+export function DashboardShell({ user, viewingAs, children }: { user: { username: string; full_name: string | null; roles: string[] }; viewingAs?: boolean; children: React.ReactNode }) {
   const path = usePathname(); const [open, setOpen] = useState(false);
   useEffect(() => setOpen(false), [path]);
   const groups = (['ADMIN', 'INVESTOR', 'GUARANTOR'] as const).filter(r => user.roles.includes(r)).map(r => NAV[r]);
   const active = (i: Item) => (i.exact ? path === i.href : path === i.href || path.startsWith(i.href + '/'));
+  async function exitView() { try { await api('/api/admin/impersonate', { method: 'DELETE' }); } finally { window.location.href = '/admin'; } }
   return (
-    <div className="shell">
+    <>
+    {viewingAs && (
+      <div className="viewas" role="status">
+        <span>Viewing as <b>@{user.username}</b> · read-only — you can look but not change anything. Everything you see is what they see.</span>
+        <button className="btn btn-sm" onClick={exitView}>Exit view</button>
+      </div>
+    )}
+    <div className={`shell ${viewingAs ? 'has-banner' : ''}`}>
       <aside className={`sidebar ${open ? 'open' : ''}`} aria-label="Main navigation">
         <Link href="/" className="brand" style={{ textDecoration: 'none' }}>
           <Image src="/logo.png" alt="Crystal Drinks" width={54} height={58} priority /><div><b>Crystal Drinks</b><span>Funding platform</span></div>
@@ -85,5 +93,6 @@ export function DashboardShell({ user, children }: { user: { username: string; f
         <main className="content" id="main">{children}</main>
       </div>
     </div>
+    </>
   );
 }

@@ -6,6 +6,7 @@ import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import { Field, MoneyDisplay, PageHeader } from '@/components/ui/kit';
 import { formatDate } from '@/lib/format';
+import { ViewAsButton } from '@/components/domain/ViewAsButton';
 
 function AddGuarantor({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
   const [f, setF] = useState({ username: '', full_name: '', phone: '', password: '' }); const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const toast = useToast();
@@ -38,6 +39,7 @@ export default function Guarantors() {
           { key: 'un', header: 'Unsettled', align: 'right', render: r => <MoneyDisplay value={r.unsettled} /> },
           { key: 'p', header: 'Paid', align: 'right', render: r => <MoneyDisplay value={r.paid} /> },
           { key: 'c', header: 'Since', sort: 'created', render: r => formatDate(r.created_at) },
+          { key: 'v', header: '', actions: true, render: r => <ViewAsButton user={r} landing="guarantor" /> },
         ]} />
       {add && <AddGuarantor onClose={() => setAdd(false)} onSaved={() => setK(k + 1)} />}
     </>

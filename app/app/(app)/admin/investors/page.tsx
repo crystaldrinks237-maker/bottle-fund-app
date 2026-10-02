@@ -6,6 +6,7 @@ import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import { Field, MoneyDisplay, PageHeader } from '@/components/ui/kit';
 import { formatDate } from '@/lib/format';
+import { ViewAsButton } from '@/components/domain/ViewAsButton';
 
 function AssignGuarantor({ investor, onClose, onSaved }: { investor: any; onClose: () => void; onSaved: () => void }) {
   const { data } = useApi<any>('/api/guarantors?size=100'); const [g, setG] = useState(String(investor.guarantor_id || '')); const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const toast = useToast();
@@ -34,7 +35,7 @@ export default function Investors() {
           { key: 'v', header: 'Verified invested', sort: 'invested', align: 'right', render: r => <MoneyDisplay value={r.invested} /> },
           { key: 'p', header: 'Payout account', render: r => (r.payout_account ? `${r.payout_method || ''} ${r.payout_account}` : <span className="muted">Not set</span>) },
           { key: 'c', header: 'Joined', sort: 'created', render: r => formatDate(r.created_at) },
-          { key: 'a', header: '', actions: true, render: r => <button className="btn btn-sm" onClick={() => setSel(r)}>Set guarantor</button> },
+          { key: 'a', header: '', actions: true, render: r => (<><ViewAsButton user={r} landing="investor" /><button className="btn btn-sm" onClick={() => setSel(r)}>Set guarantor</button></>) },
         ]} />
       {sel && <AssignGuarantor investor={sel} onClose={() => setSel(null)} onSaved={() => setK(k + 1)} />}
     </>

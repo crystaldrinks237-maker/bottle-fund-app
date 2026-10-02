@@ -6,5 +6,5 @@ export const dynamic = 'force-dynamic';
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const u = await getCurrentUser();
   if (!u) redirect('/login');
-  return <DashboardShell user={{ username: u.username, full_name: u.full_name, roles: u.roles }}>{children}</DashboardShell>;
+  return <DashboardShell user={{ username: u.username, full_name: u.full_name, roles: u.roles }} viewingAs={!!u.viewingAs}>{children}</DashboardShell>;
 }

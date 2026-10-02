@@ -221,3 +221,8 @@ a.stat:hover { border-color: var(--sky); text-decoration: none; }
 .testi { margin: 0; padding: 22px; border: 1px solid var(--line); border-radius: 14px; background: #fff; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 12px; }
 .testi blockquote { margin: 0; color: #2A3B5E; font-size: 1rem; line-height: 1.6; flex: 1; } .testi blockquote::before { content: '“'; } .testi blockquote::after { content: '”'; }
 .testi figcaption { font-size: .9rem; border-top: 1px solid var(--line); padding-top: 12px; }
+
+/* ---------- admin "view as" banner ---------- */
+.viewas { position: sticky; top: 0; z-index: 70; display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap; padding: 8px 14px; background: #FFF1CF; border-bottom: 2px solid #E2A13A; color: #6B4300; font-size: .88rem; text-align: center; }
+.has-banner .sidebar { top: 44px; height: calc(100vh - 44px); } .has-banner .topbar { top: 44px; }
+@media (max-width: 960px) { .has-banner .sidebar { top: 44px; height: calc(100vh - 44px); } }

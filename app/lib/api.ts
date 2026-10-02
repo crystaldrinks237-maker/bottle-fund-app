@@ -11,9 +11,14 @@ export const conflict = (m: string, code?: string) => new ApiError(409, m, code)
 
 type H = (req: Request, ctx: any) => Promise<any>;
 /** Wraps a route handler: JSON-encodes results and maps known errors to clean HTTP responses. */
-export function handler(fn: H) {
+export function handler(fn: H, opts: { allowWhileViewing?: boolean } = {}) {
   return async (req: Request, ctx: any) => {
     try {
+      // "View as user" is strictly read-only: while an admin is looking at the app as someone else, nothing can be changed.
+      if (req.method !== 'GET' && req.method !== 'HEAD' && !opts.allowWhileViewing && (req.headers.get('cookie') || '').includes('cd_view_as=')) {
+        const { isViewingAs } = await import('./session');
+        if (await isViewingAs()) throw new ApiError(403, 'Read-only: you are viewing this account as an administrator. Exit view mode to make changes.', 'VIEW_ONLY');
+      }
       const out = await fn(req, ctx);
       return out instanceof Response ? out : NextResponse.json(out ?? { ok: true }, { headers: { 'Cache-Control': 'no-store' } });
     } catch (e: any) {
