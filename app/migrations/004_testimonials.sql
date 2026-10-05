@@ -1,5 +1,5 @@
 -- Customer testimonials. Only real, consenting customers; nothing is public until an admin approves it.
-CREATE TABLE testimonials (
+CREATE TABLE IF NOT EXISTS testimonials (
   id             SERIAL PRIMARY KEY,
   investor_id    INTEGER REFERENCES users(id),                       -- set for reviews written by the investor themselves
   source         TEXT NOT NULL CHECK (source IN ('INVESTOR','ADMIN_ENTERED')),
@@ -17,5 +17,5 @@ CREATE TABLE testimonials (
   reviewed_at    TIMESTAMPTZ,
   CONSTRAINT t_source_matches CHECK ((source = 'INVESTOR') = (investor_id IS NOT NULL))
 );
-CREATE UNIQUE INDEX ux_testimonial_investor ON testimonials (investor_id) WHERE investor_id IS NOT NULL;  -- one review per investor
-CREATE INDEX ix_testimonials_status ON testimonials (status, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_testimonial_investor ON testimonials (investor_id) WHERE investor_id IS NOT NULL;  -- one review per investor
+CREATE INDEX IF NOT EXISTS ix_testimonials_status ON testimonials (status, created_at DESC);
