@@ -12,14 +12,14 @@ const g = (sub: string, email: string, verified = true) => ({ sub: 'sub-' + sub 
   ok('error' in await resolveGoogleUser(g('u1', 'unv', false), null), 'unverified Google email refused');
   const a: any = await resolveGoogleUser(g('a', 'newbie'), null);
   const [ua] = await query('SELECT roles, has_password, email, username FROM users WHERE id=$1', [a.id]);
-  ok(a.id && ua.roles.join() === 'INVESTOR' && ua.has_password === false && ua.username.startsWith('newbie'), 'new Google user → INVESTOR account with no usable password');
+  ok(a.id && ua.roles.join() === 'INVESTOR,GUARANTOR' && ua.has_password === false && ua.username.startsWith('newbie'), 'new Google user → INVESTOR account with no usable password');
   ok((await resolveGoogleUser(g('a', 'newbie'), null) as any).id === a.id, 'same Google account signs into the same user');
   ok('error' in await resolveGoogleUser({ ...g('a', 'newbie'), sub: 'other-sub' + R }, null), 'different Google identity with a taken email does not get in');
 
   const [pw] = await query(`INSERT INTO users (username, password_hash, roles) VALUES ($1,'x',ARRAY['ADMIN']) RETURNING id`, ['pwadmin' + R]);
   const b: any = await resolveGoogleUser(g('b', 'pwadmin'), null);
   ok(b.id && b.id !== pw.id, 'existing password account is NEVER auto-linked by email (Google sign-in makes a separate investor)');
-  ok((await query('SELECT roles FROM users WHERE id=$1', [b.id]))[0].roles.join() === 'INVESTOR', 'and that new account is only an investor — no privilege inheritance');
+  ok((await query('SELECT roles FROM users WHERE id=$1', [b.id]))[0].roles.join() === 'INVESTOR,GUARANTOR', 'and that new account has no admin rights — no privilege inheritance');
 
   const l: any = await resolveGoogleUser(g('c', 'linked'), pw.id);
   ok(l.id === pw.id && (await query('SELECT google_sub FROM users WHERE id=$1', [pw.id]))[0].google_sub === 'sub-c' + R, 'signed-in user can explicitly connect Google to their own account');

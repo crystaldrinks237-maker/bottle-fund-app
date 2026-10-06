@@ -19,8 +19,8 @@ const NAV: Record<string, { title: string; items: Item[] }> = {
   INVESTOR: { title: 'Investing', items: [
     { href: '/dashboard', label: 'Dashboard', icon: 'dashboard', exact: true }, { href: '/investments', label: 'My Investments', icon: 'wallet' },
     { href: '/funding-needs', label: 'Funding Needs', icon: 'layers' }, { href: '/payouts', label: 'Payouts', icon: 'cash' }, { href: '/profile', label: 'Profile', icon: 'user' } ] },
-  GUARANTOR: { title: 'Guarantor', items: [
-    { href: '/guarantor', label: 'Dashboard', icon: 'dashboard', exact: true }, { href: '/guarantor/payments', label: 'Monthly Payments', icon: 'calendar' }, ...[] ] },
+  GUARANTOR: { title: 'Earn by referring', items: [
+    { href: '/guarantor', label: 'My Referrals', icon: 'users', exact: true }, { href: '/guarantor/payments', label: 'Referral Payments', icon: 'calendar' } ] },
 };
 
 function Bell() {

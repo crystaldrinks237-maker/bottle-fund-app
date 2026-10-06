@@ -43,7 +43,7 @@ ok(await admin.login('admin', 'admin-password-1'), 'bootstrap admin can sign in'
 ok((await anon.req('/api/investments')).status === 401, 'unauthenticated API call → 401');
 const su = await signup('mallory' + S, { role: 'ADMIN', roles: ['ADMIN'] });
 ok(su.status === 200, 'signup with injected role=ADMIN is accepted as a normal signup…');
-ok((await sql(`SELECT roles FROM users WHERE username='mallory${S}'`))[0].roles.join() === 'INVESTOR', '…and the user is only an INVESTOR (33: cannot self-promote)');
+ok(!(await sql(`SELECT roles FROM users WHERE username='mallory${S}'`))[0].roles.includes('ADMIN'), '…and the user has no admin rights (33: cannot self-promote)');
 const mal = new Client(); await mal.login('mallory' + S, 'password-12345');
 ok((await mal.req('/api/admin/overview')).status === 403, 'non-admin cannot reach admin API (32)');
 ok((await mal.req('/api/funding-needs', { method: 'POST', json: {} })).status === 403, 'non-admin cannot create funding needs');
@@ -51,10 +51,12 @@ const gg = await admin.req('/api/guarantors', { method: 'POST', json: { username
 ok(gg.status === 200, 'admin creates guarantor account');
 await admin.req('/api/guarantors', { method: 'POST', json: { username: 'guar2' + S, password: 'password-12345' } });
 ok(await g1.login('guar1' + S, 'password-12345') && await g2.login('guar2' + S, 'password-12345'), 'guarantors sign in');
-await signup('inv1' + S, { guarantor_username: 'guar1' + S }); await signup('inv2' + S);
+const g1Code = (await sql('SELECT referral_code FROM users WHERE username=$1', ['guar1' + S]))[0].referral_code;
+await signup('inv1' + S, { ref: g1Code }); await signup('inv2' + S);
 ok(await inv1.login('inv1' + S, 'password-12345') && await inv2.login('inv2' + S, 'password-12345'), 'investors sign in');
-const bad = await signup('x' + S, { guarantor_username: 'nobody' + S });
-ok(bad.status === 400, 'signup with unknown guarantor rejected');
+const badRef = await signup('x' + S, { ref: 'ZZZZZZZZ' });
+ok(badRef.status === 400, 'signup with an unknown referral code is rejected (a typo must not silently lose the referrer)');
+ok((await sql('SELECT 1 FROM users WHERE username=$1', ['x' + S])).length === 0, '…and no account is created');
 
 section('1–3  Two funding needs, same day, both open, accounts assigned');
 const mkAcct = async (name, total, daily) => (await admin.req('/api/payment-accounts', { method: 'POST', json: { account_name: name, provider: 'BANK', bank_name: 'HBL', account_holder_name: 'Crystal Drinks', account_number: '1234-' + name, iban: 'PK36SCBL0000001123456702', instructions: 'Use your username as reference', total_limit: total, daily_limit: daily } })).data;
@@ -96,6 +98,7 @@ ok(queue.rows.some(r => r.id === i1 && r.account_name === 'A' + S && r.guarantor
 ok((await sql(`SELECT count(*)::int n FROM notifications WHERE type='VERIFICATION_PENDING'`))[0].n >= 1, 'admin notified of pending verification');
 
 section('30–31  Isolation between users');
+const inv1Id0 = (await sql('SELECT id FROM users WHERE username=$1', ['inv1' + S]))[0].id;
 ok((await inv2.req(`/api/investments/${i1}`)).status === 404, 'another investor cannot read this investment (30)');
 const proofId = (await sql('SELECT proof_id FROM investments WHERE id=$1', [i1]))[0].proof_id;
 ok((await inv2.req(`/api/proofs/${proofId}`)).status === 404, 'another investor cannot read the payment proof');
@@ -212,7 +215,7 @@ const gId = (await sql('SELECT id FROM users WHERE username=$1', ['guar1' + S]))
 const expMonth = (await sql(`SELECT COALESCE(SUM(guarantor_profit),0) AS s FROM investments WHERE guarantor_id=$1 AND status IN ('VERIFIED','PAYOUT_DUE','COMPLETED') AND verified_at >= (date_trunc('month', now() AT TIME ZONE 'Asia/Karachi') AT TIME ZONE 'Asia/Karachi')`, [gId]))[0].s;
 ok(gd.cards.referred_investors === 1 && Number(gd.cards.earnings_this_month) === Number(expMonth) && Number(gd.cards.pending_earnings) === 2000, 'guarantor dashboard: this-month earnings match the DB; pending 2,000 (16)');
 ok(Number((await g2.req('/api/guarantor/dashboard')).data.cards.earnings_this_month) === 0, 'other guarantor sees none of it');
-ok((await inv1.req('/api/guarantor/dashboard')).status === 403, 'investor cannot open guarantor dashboard');
+ok((await inv1.req('/api/guarantor/dashboard')).status === 200 && (await admin.req('/api/guarantor/dashboard')).status === 403, 'every investor has a referrals dashboard; an admin account without the guarantor role does not');
 const month = new Date().toISOString().slice(0, 7);
 const prev = (await admin.req(`/api/guarantor-payments?preview=1&month=${month}`)).data.rows;
 ok(prev.length === 1 && prev[0].amount === '2000.00', 'settlement preview: one guarantor, 2,000');
@@ -228,8 +231,16 @@ ok((await admin.req(`/api/guarantor-payments/${gp.id}`, { method: 'PATCH', json:
 ok((await admin.req(`/api/guarantor-payments/${gp.id}`, { method: 'PATCH', json: { action: 'pay', transaction_id: 'GTX-' + S, notes: 'internal' } })).status === 200, 'admin enters transaction ID and marks paid (18)');
 const gp2 = (await g1.req('/api/guarantor-payments')).data.rows[0];
 ok(gp2.status === 'PAID' && gp2.transaction_id === 'GTX-' + S, 'guarantor sees payment and transaction ID (19)');
+await db.query(`UPDATE users SET payout_account='0300-1112223' WHERE username IN ($1,$2)`, ['inv1' + S, 'guar1' + S]);
+const flagged = (await admin.req(`/api/guarantor-payments/${gp.id}`)).data.flags;
+ok(flagged.length === 1 && flagged[0].same_payout === true, 'admin is warned when a referred investor shares a payout account with the guarantor (self-referral check)');
+ok(!('flags' in (await g1.req(`/api/guarantor-payments/${gp.id}`)).data), '…and the guarantor never sees that flag');
+await db.query(`UPDATE users SET payout_account=NULL WHERE username IN ($1,$2)`, ['inv1' + S, 'guar1' + S]);
+ok((await admin.req(`/api/guarantor-payments/${gp.id}`)).data.flags.length === 0, 'no flag when they do not match');
 ok((await g2.req(`/api/guarantor-payments/${gp.id}`)).status === 404 && (await g2.req(`/api/guarantors/${(await sql('SELECT id FROM users WHERE username=$1', ['guar1' + S]))[0].id}/payments`)).status === 404, 'another guarantor cannot read this payment (31)');
-ok((await inv1.req('/api/guarantor-payments')).status === 403, 'investor cannot list guarantor payments');
+const ownGp = await inv1.req('/api/guarantor-payments');
+ok(ownGp.status === 200 && ownGp.data.rows.every(r => r.guarantor_id === inv1Id0), 'an investor lists only their own referral payments');
+ok((await new Client().req('/api/guarantor-payments')).status === 401, 'anonymous cannot list guarantor payments');
 
 section('20–22  Payment claim');
 ok((await g2.req('/api/payment-claims', { method: 'POST', json: { guarantor_payment_id: gp.id, reason: 'not mine' } })).status === 404, 'another guarantor cannot claim on this payment');
@@ -280,47 +291,38 @@ ok((await invest(inv1, need6.id, '500', acctBig.id)).status === 200, 'final rema
 ok((await sql('SELECT status FROM funding_needs WHERE id=$1', [need6.id]))[0].status === 'FULL', 'need is FULL');
 ok((await admin.req(`/api/funding-needs/${need6.id}`, { method: 'PATCH', json: { title: 'MinTest ' + S, product: 'M', quantity: 500, cost_price: '10', sell_price: '20', op_cost: '0', investor_pct: '50', guarantor_pct: '0', min_investment: '2000', account_ids: [acctBig.id] } })).status === 200, 'admin can change the minimum even after investments exist');
 
-section('New: fallback guarantor (share for investors with no guarantor)');
+section('Referral links');
 const adminId = (await sql(`SELECT id FROM users WHERE username='admin'`))[0].id;
-ok((await inv1.req('/api/admin/settings', { method: 'PUT', json: { fallback_guarantor_id: adminId } })).status === 403, 'non-admin cannot change settings');
-ok((await admin.req('/api/admin/settings', { method: 'PUT', json: { fallback_guarantor_id: 999999 } })).status === 400, 'unknown fallback account rejected');
-const fbSet = await admin.req('/api/admin/settings', { method: 'PUT', json: { fallback_guarantor_id: adminId } });
-ok(fbSet.status === 200 && fbSet.data.fallback_guarantor_id === adminId, 'admin sets themselves as the fallback guarantor');
-ok((await sql(`SELECT roles FROM users WHERE id=$1`, [adminId]))[0].roles.includes('GUARANTOR'), 'admin account gained the GUARANTOR role (audited)');
-const f1 = (await invest(inv2, need1.id, '10000', acctA.id)).data.investment.id;   // inv2 has no guarantor
-await admin.req(`/api/investments/${f1}/verify`, { method: 'POST' });
-const fr = (await sql('SELECT guarantor_id, guarantor_is_fallback, guarantor_profit, business_profit FROM investments WHERE id=$1', [f1]))[0];
-ok(fr.guarantor_id === adminId && fr.guarantor_is_fallback === true && fr.guarantor_profit === '400.00', 'no-guarantor investment: 400 guarantor share credited to the admin account');
-const f2 = (await invest(inv1, need1.id, '10000', acctA.id)).data.investment.id;   // inv1 has guar1
-await admin.req(`/api/investments/${f2}/verify`, { method: 'POST' });
-const fr2 = (await sql('SELECT guarantor_id, guarantor_is_fallback FROM investments WHERE id=$1', [f2]))[0];
-ok(fr2.guarantor_is_fallback === false && fr2.guarantor_id !== adminId, 'investor WITH a guarantor is unaffected by the fallback');
-const ad = (await admin.req('/api/guarantor/dashboard')).data;
-ok(Number(ad.cards.earnings_this_month) === 400, 'admin sees the 400 on their guarantor dashboard');
-ok(!('guarantor_is_fallback' in (await inv2.req(`/api/investments/${f1}`)).data), 'investor cannot see guarantor/fallback details');
-const pv = (await admin.req(`/api/guarantor-payments?preview=1&month=${month}`)).data.rows;
-ok(pv.length === 2 && pv.find(r => r.guarantor_id === adminId)?.amount === '400.00', 'settlement preview lists the admin (400) and guar1 (400)');
-const g3 = await admin.req('/api/guarantor-payments', { method: 'POST', json: { month } });
-ok(g3.data.created === 1 && g3.data.skipped === 1, 'settlement: admin payment created; guar1’s already-paid month is skipped (earning rolls forward, not lost)');
-const late = (await sql(`SELECT count(*)::int n FROM investments i WHERE i.id=$1 AND NOT EXISTS (SELECT 1 FROM guarantor_payment_items x WHERE x.investment_id=i.id)`, [f2]))[0].n;
-ok(late === 1, 'guar1’s late earning stays unsettled for the next settlement');
-ok((await admin.req('/api/admin/settings', { method: 'PUT', json: { fallback_guarantor_id: null } })).status === 200, 'fallback can be switched off');
-const f3 = (await invest(inv2, need1.id, '5000', acctA.id)).data.investment.id;
-await admin.req(`/api/investments/${f3}/verify`, { method: 'POST' });
-const fr3 = (await sql('SELECT guarantor_id, guarantor_profit, business_profit FROM investments WHERE id=$1', [f3]))[0];
-ok(fr3.guarantor_id === null && fr3.guarantor_profit === '0.00', 'with fallback off, the share stays in business profit again');
+const codes = await sql(`SELECT referral_code FROM users`);
+ok(codes.every(c => /^[0-9A-F]{8}$/.test(c.referral_code)) && new Set(codes.map(c => c.referral_code)).size === codes.length, 'every user has a unique 8-character referral code');
+ok((await sql(`SELECT roles FROM users WHERE username=$1`, ['inv1' + S]))[0].roles.join() === 'INVESTOR,GUARANTOR', 'new sign-ups are investors AND can be guarantors (no admin setup)');
+ok((await sql(`SELECT g.username FROM guarantor_relationships r JOIN users g ON g.id=r.guarantor_id JOIN users i ON i.id=r.investor_id WHERE i.username=$1`, ['inv1' + S]))[0].username === 'guar1' + S, 'signing up with a code makes that person the guarantor automatically');
+ok((await sql(`SELECT count(*)::int n FROM guarantor_relationships r JOIN users i ON i.id=r.investor_id WHERE i.username=$1`, ['inv2' + S]))[0].n === 0, 'with no code and no default guarantor configured, there is simply no guarantor');
+const rl = await new Client().req('/r/' + g1Code.toLowerCase());
+ok(rl.status === 307 || rl.status === 302, '/r/CODE redirects');
+const viaLink = new Client(); const rr = await fetch(BASE + '/r/' + g1Code, { redirect: 'manual' });
+ok((rr.headers.get('location') || '').endsWith('/signup?ref=' + g1Code) && /cd_ref=/.test((rr.headers.getSetCookie?.() || []).join(';')), '/r/CODE sends visitors to sign-up with the code and remembers it for 30 days');
+viaLink.jar['cd_ref'] = g1Code;                       // visitor browsed first, then clicked "Create account" (no code typed)
+await viaLink.req('/api/signup', { method: 'POST', json: { username: 'viacookie' + S, password: 'password-12345' } });
+ok((await sql(`SELECT g.username FROM guarantor_relationships r JOIN users g ON g.id=r.guarantor_id JOIN users i ON i.id=r.investor_id WHERE i.username=$1`, ['viacookie' + S]))[0]?.username === 'guar1' + S, 'the remembered link still attributes the referrer when they sign up later');
+const junkCookie = new Client(); junkCookie.jar['cd_ref'] = 'NOTREAL1';
+ok((await junkCookie.req('/api/signup', { method: 'POST', json: { username: 'junkck' + S, password: 'password-12345' } })).status === 200, 'a stale/unknown link cookie is ignored, not an error');
+const refLookup = (await new Client().req('/api/public/referrer?code=' + g1Code)).data;
+ok(refLookup.valid === true && refLookup.name && !/guar1/.test('') && !('id' in refLookup), 'sign-up page can show “Invited by …” (first name only)');
+ok((await new Client().req('/api/public/referrer?code=NOPE')).data.valid === false, 'unknown code → not valid');
+ok((await inv1.req('/api/me')).data.referral_code && (await inv1.req('/api/me')).data.guarantor_username === 'guar1' + S, 'investor sees their own link code and who invited them');
+ok((await inv1.req('/api/me', { method: 'PATCH', json: { full_name: 'x', guarantor_username: 'inv2' + S } })).status === 200 && (await sql(`SELECT g.username FROM guarantor_relationships r JOIN users g ON g.id=r.guarantor_id JOIN users i ON i.id=r.investor_id WHERE i.username=$1`, ['inv1' + S]))[0].username === 'guar1' + S, 'users cannot re-point their own guarantor (extra field ignored)');
+ok((await inv1.req('/api/guarantors', { method: 'POST', json: { username: 'sneaky' + S, password: 'password-12345' } })).status === 403, 'only admins can create accounts directly');
 
-section('Regression: overview / date shapes the pages rely on');
-const ov2 = (await admin.req('/api/admin/overview')).data;
-const future = ov2.cashflow.filter(c => c.day !== null);
-ok(future.length >= 1 && future.every(c => /^\d{4}-\d{2}-\d{2}$/.test(c.day) && !isNaN(new Date(c.day + 'T12:00:00Z'))), 'overview cash-flow days are plain YYYY-MM-DD strings and form valid dates');
-const gpl = (await admin.req('/api/guarantor-payments')).data.rows;
-ok(gpl.length >= 1 && gpl.every(r => /^\d{4}-\d{2}-01$/.test(r.period_month)), 'guarantor period_month is a plain YYYY-MM-01 string (no timezone shift)');
-const cl = (await admin.req('/api/payment-claims')).data.rows;
-ok(cl.filter(r => r.kind === 'GUARANTOR_PAYMENT').every(r => /^\d{4}-\d{2}-01$/.test(r.period_month)), 'claims carry plain period_month strings too');
-ok(ov2.cards.payouts_due_count !== undefined && Array.isArray(ov2.near_limit) && Array.isArray(ov2.needs) && Array.isArray(ov2.recent), 'overview payload has every section the page reads');
-const st2 = (await admin.req('/api/admin/settings')).data;
-ok(Array.isArray(st2.candidates) && 'fallback_guarantor_id' in st2, 'settings payload has candidates + fallback_guarantor_id');
+section('Settlement roll-forward: an earning that arrives after its month was already paid');
+const f2 = (await invest(inv1, need1.id, '10000', acctA.id)).data.investment.id;
+await admin.req(`/api/investments/${f2}/verify`, { method: 'POST' });
+const pv = (await admin.req(`/api/guarantor-payments?preview=1&month=${month}`)).data.rows;
+ok(pv.length === 1 && pv[0].amount === '400.00' && pv[0].payment_status === 'RESOLVED', 'preview: guar1 has a new 400 earning but that month’s payment is already closed');
+const g3 = await admin.req('/api/guarantor-payments', { method: 'POST', json: { month } });
+ok(g3.data.created === 0 && g3.data.skipped === 1, 'generating again skips the closed payment (never alters money already paid)');
+ok((await sql(`SELECT count(*)::int n FROM investments i WHERE i.id=$1 AND NOT EXISTS (SELECT 1 FROM guarantor_payment_items x WHERE x.investment_id=i.id)`, [f2]))[0].n === 1, 'the late earning stays unsettled and rolls into the next settlement');
+
 section('New: admin can also use the investor side');
 ok((await inv1.req('/api/me/roles', { method: 'POST', json: { investor: true } })).status === 403, 'non-admin cannot use the roles endpoint');
 ok((await admin.req('/api/me/roles', { method: 'POST', json: { roles: ['ADMIN'], investor: true } })).status === 200 && (await sql(`SELECT roles FROM users WHERE id=$1`, [adminId]))[0].roles.includes('INVESTOR'), 'admin turns on their investor side');

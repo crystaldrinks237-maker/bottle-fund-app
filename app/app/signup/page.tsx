@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { signIn } from 'next-auth/react';
 import { AuthShell } from '@/components/layout/AuthShell';
 import { Field } from '@/components/ui/kit';
@@ -8,13 +8,15 @@ import { GoogleButton } from '@/components/layout/GoogleButton';
 import { api } from '@/lib/client';
 
 export default function Signup() {
-  const [f, setF] = useState({ username: '', full_name: '', phone: '', password: '', guarantor_username: '' });
+  const [f, setF] = useState({ username: '', full_name: '', phone: '', password: '', ref: '' }); const [inviter, setInviter] = useState('');
   const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
+  useEffect(() => { const r = new URLSearchParams(window.location.search).get('ref'); if (r) setF(x => ({ ...x, ref: r.toUpperCase() })); }, []);
+  useEffect(() => { const c = f.ref.trim(); if (c.length < 6) { setInviter(''); return; } const t = setTimeout(() => fetch(`/api/public/referrer?code=${encodeURIComponent(c)}`).then(r => r.json()).then(j => setInviter(j.valid ? j.name : '')).catch(() => {}), 300); return () => clearTimeout(t); }, [f.ref]);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
   async function submit(e: React.FormEvent) {
     e.preventDefault(); setErr(''); setBusy(true);
     try {
-      await api('/api/signup', { method: 'POST', json: { ...f, guarantor_username: f.guarantor_username || null } });
+      await api('/api/signup', { method: 'POST', json: { ...f, ref: f.ref.trim() || null } });
       const res = await signIn('credentials', { username: f.username, password: f.password, redirect: false });
       window.location.href = res?.error ? '/login' : '/';
     } catch (x: any) { setErr(x.message); setBusy(false); }
@@ -29,7 +31,7 @@ export default function Signup() {
         </div>
         <div className="grid2">
           <Field label="Phone" hint="For payout follow-up"><input className="input" type="tel" autoComplete="tel" value={f.phone} onChange={set('phone')} /></Field>
-          <Field label="Guarantor username" hint="Only if someone referred you"><input className="input" autoCapitalize="none" value={f.guarantor_username} onChange={set('guarantor_username')} /></Field>
+          <Field label="Referral code" hint={inviter ? `Invited by ${inviter} ✓` : 'Only if someone invited you'}><input className="input mono" autoCapitalize="characters" value={f.ref} onChange={set('ref')} /></Field>
         </div>
         <Field label="Password" hint="At least 10 characters"><input className="input" type="password" autoComplete="new-password" value={f.password} onChange={set('password')} required minLength={10} /></Field>
         {err && <div className="errbox" role="alert">{err}</div>}

@@ -3,14 +3,16 @@ import Link from 'next/link';
 import { useApi } from '@/lib/client';
 import { EmptyState, ErrorState, LoadingState, MoneyDisplay, PageHeader, StatCard, StatusBadge } from '@/components/ui/kit';
 import { formatDate, formatDateTime } from '@/lib/format';
+import { ReferralCard } from '@/components/domain/ReferralCard';
 
 export default function GuarantorHome() {
   const { data, error, loading, refetch } = useApi<any>('/api/guarantor/dashboard');
   return (
     <>
-      <PageHeader title="Guarantor dashboard" subtitle="Your referral earnings. Payments are made once a month." actions={<Link className="btn" href="/guarantor/payments">Payment history</Link>} />
+      <PageHeader title="My referrals" subtitle="People who joined through your link, and what you earn from them. Paid once a month." actions={<Link className="btn" href="/guarantor/payments">Payment history</Link>} />
       {loading && !data ? <div className="card"><LoadingState /></div> : error ? <div className="card"><ErrorState message={error} onRetry={refetch} /></div> : data && (
         <div className="stack">
+          <ReferralCard />
           <div className="stats">
             <StatCard icon="calendar" label="Earnings this month" value={<MoneyDisplay value={data.cards.earnings_this_month} />} sub="From investments verified this month" />
             <StatCard icon="clock" label="Pending earnings" value={<MoneyDisplay value={data.cards.pending_earnings} />} sub="Not yet paid to you" tone="warn" />
@@ -19,7 +21,7 @@ export default function GuarantorHome() {
             <StatCard icon="wallet" label="Active referred investments" value={data.cards.active_referred_investments} />
           </div>
           <div className="card"><div className="card-head"><div><h2>Your referred investors</h2><p>Only the information needed to track your earnings.</p></div></div>
-            {!data.referred.length ? <EmptyState icon="users" title="No referred investors yet">Investors who name you as their guarantor when signing up will appear here.</EmptyState> : (
+            {!data.referred.length ? <EmptyState icon="users" title="No referred investors yet">Share your referral link above — everyone who signs up through it appears here.</EmptyState> : (
               <div className="table-wrap"><table className="tbl responsive"><thead><tr><th>Investor</th><th>Joined</th><th className="right">Verified investments</th><th className="right">Invested</th><th className="right">Your earnings</th></tr></thead>
                 <tbody>{data.referred.map((r: any) => <tr key={r.id}><td data-label="Investor"><b>{r.username}</b></td><td data-label="Joined">{formatDate(r.joined_at)}</td><td data-label="Investments" className="right">{r.investments}</td><td data-label="Invested" className="right"><MoneyDisplay value={r.invested} /></td><td data-label="Earnings" className="right"><MoneyDisplay value={r.earnings} strong /></td></tr>)}</tbody></table></div>)}
           </div>

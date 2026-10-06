@@ -4,6 +4,7 @@ import GoogleProvider from 'next-auth/providers/google';
 import { decode } from 'next-auth/jwt';
 import { cookies } from 'next/headers';
 import { resolveGoogleUser } from './google';
+import { REF_COOKIE } from './referrals';
 import bcrypt from 'bcryptjs';
 import { query } from './db';
 
@@ -57,7 +58,8 @@ export const authOptions: NextAuthOptions = {
           try { jar.delete(LINK_COOKIE); } catch {}
         }
       } catch {}
-      const r = await resolveGoogleUser(profile as any, linkUserId);
+      let remembered: string | null = null; try { remembered = cookies().get(REF_COOKIE)?.value || null; } catch {}
+      const r = await resolveGoogleUser(profile as any, linkUserId, remembered);
       if ('error' in r) return `/${linkUserId ? 'profile' : 'login'}?error=${r.error}`;
       (user as any).id = String(r.id);
       return true;

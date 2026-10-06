@@ -13,7 +13,6 @@ import { formatMoney } from '@/lib/format';
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Fund bottle production. Get paid in 7 days.', description: 'Crystal Drinks funding platform — see open funding needs, calculate your profit, and invest or become a guarantor.' };
 
-const WA = process.env.NEXT_PUBLIC_CONTACT_WHATSAPP, MAIL = process.env.NEXT_PUBLIC_CONTACT_EMAIL;
 const STEPS = [
   ['Choose a funding need', 'Browse the production batches that are open right now and see the exact terms before you commit.'],
   ['Pay and upload proof', 'Send your amount to the payment account shown and upload the screenshot. We record the account exactly as you saw it.'],
@@ -23,7 +22,7 @@ const STEPS = [
 const FAQ = [
   ['When exactly do I get paid?', 'Exactly 7 days (168 hours) after your payment is verified — not after you send it. The countdown on your investment shows the precise second.'],
   ['How is my profit worked out?', 'Each funding need has a profit per bottle (selling price minus cost and operating cost). Your share of that profit is the investor percentage shown on the need, applied to the share of the batch your money funds. The calculator above does this for you.'],
-  ['How do guarantors earn?', 'A guarantor refers investors. For each verified investment from someone they referred, the guarantor earns the guarantor percentage of that profit. Guarantor earnings are totalled monthly and paid once a month, with a transaction ID.'],
+  ['How do guarantors earn?', 'Anyone can be a guarantor — you get a personal referral link when you sign up. Anyone who joins through it is your referral. For each verified investment from someone they referred, the guarantor earns the guarantor percentage of that profit. Guarantor earnings are totalled monthly and paid once a month, with a transaction ID.'],
   ['Where do I send my money?', 'Only to the payment account shown to you inside your signed-in account on the funding need’s page. Never send money to an account someone gave you in a chat.'],
   ['What if a payment doesn’t arrive?', 'Every payout shows a transaction ID. If it hasn’t reached you, press “I did not receive this payment” and our team reviews it with you — the payment is never silently reversed.'],
   ['Can I see everything I’ve done?', 'Yes. Every investment has a timeline: submitted, verified, countdown, payout due, payout sent, completed — with your payment proof and the account you paid to.'],
@@ -77,13 +76,9 @@ export default async function Welcome() {
         <div>
           <span className="eyebrow">For guarantors</span>
           <h2 className="sec-title" style={{ textAlign: 'left' }}>Grow your earnings without adding your own funds</h2>
-          <p className="lead" style={{ maxWidth: 520 }}>Bring people you know to Crystal Drinks. When their investments are verified, you earn the guarantor share of the profit on each one — and the more people you bring, the more you earn.</p>
-          <ul className="ticks"><li>Earn the guarantor percentage on every verified investment from your referrals</li><li>Your dashboard shows each referral, each earning and each payment</li><li>Paid once a month, with a transaction ID — and you can report a payment that didn’t arrive</li></ul>
-          <div className="row" style={{ marginTop: 18 }}>
-            <Link className="btn btn-primary" href="/signup">Create an account</Link>
-            {(WA || MAIL) && <a className="btn" href={WA ? `https://wa.me/${WA.replace(/\D/g, '')}?text=I%20would%20like%20to%20become%20a%20guarantor` : `mailto:${MAIL}?subject=Guarantor`}>Ask us to make me a guarantor</a>}
-          </div>
-          {!(WA || MAIL) && <p className="small muted" style={{ marginTop: 10 }}>After you sign up, ask the Crystal Drinks team to enable guarantor access on your account.</p>}
+          <p className="lead" style={{ maxWidth: 520 }}>Everyone who joins gets a personal referral link. Share it with people you know — when they sign up and their investments are verified, you earn the guarantor share of the profit on each one. The more people you bring, the more you earn.</p>
+          <ul className="ticks"><li>Sign up, copy your referral link, share it — that’s it, nothing to apply for</li><li>Earn the guarantor percentage on every verified investment from your referrals</li><li>Your dashboard shows each referral, each earning and each payment</li><li>Paid once a month, with a transaction ID — and you can report a payment that didn’t arrive</li></ul>
+          <div className="row" style={{ marginTop: 18 }}><Link className="btn btn-primary" href="/signup">Create an account and get my link</Link></div>
         </div>
         {ex && (
           <div className="card card-pad guar-example"><div className="small muted" style={{ fontWeight: 700 }}>Example · {ex.title}</div>

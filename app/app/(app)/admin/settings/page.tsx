@@ -6,9 +6,9 @@ import { useToast } from '@/components/ui/Toast';
 import { KV } from '@/components/domain/bits';
 
 export default function Settings() {
-  const { data, error, loading, refetch } = useApi<any>('/api/admin/settings'); const me = useApi<any>('/api/me'); const [pct, setPct] = useState(''); const [fb, setFb] = useState(''); const [busy, setBusy] = useState(false); const toast = useToast();
-  useEffect(() => { if (data) { setPct(String(data.near_limit_pct)); setFb(data.fallback_guarantor_id ? String(data.fallback_guarantor_id) : ''); } }, [data]);
-  async function save(e: React.FormEvent) { e.preventDefault(); setBusy(true); try { await api('/api/admin/settings', { method: 'PUT', json: { near_limit_pct: Number(pct), fallback_guarantor_id: fb ? Number(fb) : null } }); toast.success('Settings saved'); refetch(); } catch (x: any) { toast.error(x.message); } setBusy(false); }
+  const { data, error, loading, refetch } = useApi<any>('/api/admin/settings'); const me = useApi<any>('/api/me'); const [pct, setPct] = useState(''); const [busy, setBusy] = useState(false); const toast = useToast();
+  useEffect(() => { if (data) setPct(String(data.near_limit_pct)); }, [data]);
+  async function save(e: React.FormEvent) { e.preventDefault(); setBusy(true); try { await api('/api/admin/settings', { method: 'PUT', json: { near_limit_pct: Number(pct) } }); toast.success('Settings saved'); refetch(); } catch (x: any) { toast.error(x.message); } setBusy(false); }
   async function toggleInvestor(on: boolean) { try { await api('/api/me/roles', { method: 'POST', json: { investor: on } }); window.location.href = on ? '/dashboard' : '/admin/settings'; } catch (x: any) { toast.error(x.message); } }
   const investorOn = !!me.data?.roles?.includes('INVESTOR');
   return (
@@ -18,10 +18,10 @@ export default function Settings() {
         <div className="grid2" style={{ alignItems: 'start' }}>
           <form className="card card-pad stack" onSubmit={save}><h2>Operations</h2>
             <Field label="“Near limit” threshold (%)" hint="An account is flagged Near limit once this share of its total limit is used."><input className="input" inputMode="numeric" value={pct} onChange={e => setPct(e.target.value)} /></Field>
-            <Field label="Fallback guarantor" hint="When a verified investment has no guarantor, the guarantor share is credited to this account and paid through the normal monthly settlement. Choose “None” to keep that share in business profit. Applies to investments verified from now on.">
-              <select className="input" value={fb} onChange={e => setFb(e.target.value)}><option value="">None (stays in business profit)</option>{data.candidates.map((u: any) => <option key={u.id} value={u.id}>{u.username}{u.full_name ? ` — ${u.full_name}` : ''} ({u.roles.map((r: string) => r.toLowerCase()).join(', ')})</option>)}</select>
-            </Field>
-            {fb && !data.candidates.find((u: any) => String(u.id) === fb)?.roles.includes('GUARANTOR') && <div className="notice">This account will also be given the Guarantor role so you can see the earnings, payments and claims under a “Guarantor” menu.</div>}
+            <div className="field"><span className="lbl">Default guarantor</span>
+              {data.default_guarantor_username ? <div className="notice good">Investors who join without a referral link get <b>@{data.default_guarantor_username}</b> as their guarantor, so that account earns their guarantor share. Set by the <span className="mono">DEFAULT_GUARANTOR_USERNAME</span> environment variable.</div>
+                : data.default_guarantor_configured ? <div className="notice warn"><span className="mono">DEFAULT_GUARANTOR_USERNAME</span> is set, but no active account with that username exists. Check the spelling.</div>
+                : <div className="notice warn">Not set. Investors who join without a referral link have no guarantor, so their guarantor share stays in business profit. To change that, add <span className="mono">DEFAULT_GUARANTOR_USERNAME</span> (your admin username) in Vercel → Settings → Environment Variables, then redeploy.</div>}</div>
             <button className="btn btn-primary" disabled={busy}>{busy ? 'Saving…' : 'Save'}</button></form>
           <div className="card card-pad stack"><h2>My account</h2>
             <p className="muted">Use Crystal Drinks as an investor too, with your own investments, payouts and notifications, alongside the admin tools. You’ll see both menus in the sidebar.</p>

@@ -9,12 +9,12 @@ import { useToast } from '@/components/ui/Toast';
 export default function Profile() {
   const { data, error, loading, refetch } = useApi<any>('/api/me');
   const [f, setF] = useState<any>(null); const [pw, setPw] = useState({ current_password: '', new_password: '' }); const toast = useToast(); const [busy, setBusy] = useState(false);
-  useEffect(() => { if (data) setF({ full_name: data.full_name || '', phone: data.phone || '', payout_method: data.payout_method || '', payout_account: data.payout_account || '', guarantor_username: '' }); }, [data]);
+  useEffect(() => { if (data) setF({ full_name: data.full_name || '', phone: data.phone || '', payout_method: data.payout_method || '', payout_account: data.payout_account || '' }); }, [data]);
   useEffect(() => { const e = new URLSearchParams(window.location.search).get('error'); if (e) toast.error(GOOGLE_ERRORS[e] || 'Something went wrong.'); }, []); // eslint-disable-line
   async function connectGoogle() { try { await api('/api/me/google-link', { method: 'POST' }); await signIn('google', { callbackUrl: '/profile' }); } catch (x: any) { toast.error(x.message); } }
   async function disconnectGoogle() { try { await api('/api/me/google-link', { method: 'DELETE' }); toast.success('Google disconnected'); refetch(); } catch (x: any) { toast.error(x.message); } }
   const set = (k: string) => (e: any) => setF({ ...f, [k]: e.target.value });
-  async function save(e: React.FormEvent) { e.preventDefault(); setBusy(true); try { await api('/api/me', { method: 'PATCH', json: { ...f, guarantor_username: f.guarantor_username || null } }); toast.success('Profile saved'); refetch(); } catch (x: any) { toast.error(x.message); } setBusy(false); }
+  async function save(e: React.FormEvent) { e.preventDefault(); setBusy(true); try { await api('/api/me', { method: 'PATCH', json: f }); toast.success('Profile saved'); refetch(); } catch (x: any) { toast.error(x.message); } setBusy(false); }
   async function changePw(e: React.FormEvent) { e.preventDefault(); try { await api('/api/me/password', { method: 'POST', json: pw }); toast.success('Password changed'); setPw({ current_password: '', new_password: '' }); } catch (x: any) { toast.error(x.message); } }
   return (
     <>
@@ -28,8 +28,7 @@ export default function Profile() {
             <Field label="Phone"><input className="input" type="tel" value={f.phone} onChange={set('phone')} /></Field>
             <div className="grid2"><Field label="Payout method" hint="e.g. Easypaisa, JazzCash, Bank"><input className="input" value={f.payout_method} onChange={set('payout_method')} /></Field>
               <Field label="Payout account / number"><input className="input" value={f.payout_account} onChange={set('payout_account')} /></Field></div>
-            {data.guarantor_username ? <Field label="Your guarantor"><input className="input" value={data.guarantor_username} disabled /></Field>
-              : data.roles.includes('INVESTOR') && <Field label="Guarantor username" hint="You can set this once. Only an administrator can change it later."><input className="input" value={f.guarantor_username} onChange={set('guarantor_username')} autoCapitalize="none" /></Field>}
+            {data.guarantor_username && <Field label="Invited by" hint="Your guarantor — set automatically when you joined."><input className="input" value={data.guarantor_username} disabled /></Field>}
             <button className="btn btn-primary" disabled={busy}>{busy ? 'Saving…' : 'Save changes'}</button>
           </form>
           <form className="card card-pad stack" onSubmit={changePw}>

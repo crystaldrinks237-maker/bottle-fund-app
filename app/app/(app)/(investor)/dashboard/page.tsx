@@ -6,6 +6,7 @@ import { EmptyState, ErrorState, LoadingState, MoneyDisplay, PageHeader, StatCar
 import { ListView } from '@/components/ui/ListView';
 import { formatDate } from '@/lib/format';
 import { ReviewPrompt } from '@/components/domain/ReviewPrompt';
+import { ReferralCard } from '@/components/domain/ReferralCard';
 
 export default function Dashboard() {
   const { data, error, loading, refetch, reload } = useApi<any>('/api/me/dashboard');
@@ -22,6 +23,7 @@ export default function Dashboard() {
             <StatCard icon="cash" label="Completed payouts" value={data.cards.completed_count} sub={<MoneyDisplay value={data.cards.completed_amount} />} tone="good" />
           </div>
           <ReviewPrompt />
+          <ReferralCard />
           {Number(data.cards.due_now) > 0 && <div className="notice warn"><b>{Number(data.cards.due_now).toLocaleString()} PKR is due to you now.</b> Payouts are being sent — you’ll see the transaction ID on the investment.</div>}
           {data.next_payout && (
             <div className="card card-pad row between"><div><div className="muted small" style={{ fontWeight: 600 }}>Next payout · {data.next_payout.snap_title}</div><Countdown dueAt={data.next_payout.due_at} serverNow={data.server_now} onElapsed={reload} /></div>

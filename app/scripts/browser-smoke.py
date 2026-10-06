@@ -12,7 +12,7 @@ for role,prefix in [('investor','inv1%'),('guarantor','guar1%')]:
     u=q(f"SELECT username FROM users WHERE username LIKE '{prefix}' LIMIT 1")[0]; users[role]=(u,'password-12345')
 routes={
  'admin':['/admin','/admin/funding-needs']+[f'/admin/funding-needs/{i}' for i in need_ids]+['/admin/investments',f'/admin/investments/{inv}','/admin/payment-accounts','/admin/investors','/admin/guarantors','/admin/payouts','/admin/guarantor-payments','/admin/claims','/admin/testimonials','/admin/activity','/admin/settings','/dashboard','/investments',f'/investments/{inv}','/funding-needs',f'/funding-needs/{open_id}','/payouts','/profile','/guarantor','/guarantor/payments','/notifications'],
- 'investor':['/dashboard','/investments','/funding-needs',f'/funding-needs/{open_id}','/payouts','/profile','/notifications'],
+ 'investor':['/dashboard','/investments','/funding-needs',f'/funding-needs/{open_id}','/payouts','/profile','/notifications','/guarantor','/guarantor/payments'],
  'guarantor':['/guarantor','/guarantor/payments','/profile','/notifications'],
 }
 problems=[]; visited=0

@@ -64,10 +64,11 @@ export async function assignGuarantor(admin: CurrentUser, investorId: number, gu
 /* ------------------------------------------------------------- admin lists */
 export async function listGuarantors(url: URL) {
   const { page, size, offset } = pageParams(url);
-  const w = new Where(); w.parts = ["'GUARANTOR' = ANY(u.roles)"];
+  // Everyone can be a guarantor now, so list only people who have referred someone or earned something.
+  const w = new Where(); w.parts = [`'GUARANTOR' = ANY(u.roles) AND (EXISTS (SELECT 1 FROM guarantor_relationships r WHERE r.guarantor_id = u.id) OR EXISTS (SELECT 1 FROM investments i WHERE i.guarantor_id = u.id))`];
   const q = url.searchParams.get('q')?.trim();
   if (q) w.add('(u.username ILIKE ? OR u.full_name ILIKE ?)', likeTerm(q), likeTerm(q));
-  const order = sortParam(url, { username: 'u.username', earnings: 'lifetime', created: 'u.created_at' }, 'username');
+  const order = sortParam(url, { username: 'u.username', earnings: 'lifetime', created: 'u.created_at', referred: 'referred_investors' }, '-earnings');
   const [{ count }] = await query(`SELECT COUNT(*)::int AS count FROM users u ${w.sql}`, w.params);
   const rows = await query(
     `SELECT u.id, u.username, u.full_name, u.phone, u.is_active, u.roles, u.payout_method, u.payout_account, u.created_at,
@@ -212,7 +213,18 @@ export async function getGuarantorPayment(user: CurrentUser, id: number) {
        FROM guarantor_payment_items x JOIN investments i ON i.id = x.investment_id JOIN users u ON u.id = i.investor_id
       WHERE x.guarantor_payment_id = $1 ORDER BY i.verified_at`, [id]);
   const claims = await query(`SELECT c.id, c.status, c.reason, c.created_at, c.resolved_at, c.resolution_note, c.replacement_transaction_id FROM payment_claims c WHERE c.guarantor_payment_id = $1 ORDER BY c.created_at DESC`, [id]);
-  return { payment: gp, items, claims };
+  // Admin-only red flag: a referred investor who shares a phone or payout account with the guarantor may be the same person
+  // referring themselves to collect the guarantor share on their own money.
+  const flags = admin ? await query(
+    `SELECT DISTINCT u.username AS investor_username,
+            (NULLIF(regexp_replace(COALESCE(u.phone,''), '\D', '', 'g'), '') = NULLIF(regexp_replace(COALESCE(g.phone,''), '\D', '', 'g'), '')) AS same_phone,
+            (NULLIF(lower(trim(u.payout_account)), '') = NULLIF(lower(trim(g.payout_account)), '')) AS same_payout
+       FROM guarantor_payment_items x JOIN investments i ON i.id = x.investment_id JOIN users u ON u.id = i.investor_id
+       JOIN guarantor_payments gp ON gp.id = x.guarantor_payment_id JOIN users g ON g.id = gp.guarantor_id
+      WHERE x.guarantor_payment_id = $1
+        AND ( NULLIF(regexp_replace(COALESCE(u.phone,''), '\D', '', 'g'), '') = NULLIF(regexp_replace(COALESCE(g.phone,''), '\D', '', 'g'), '')
+           OR NULLIF(lower(trim(u.payout_account)), '') = NULLIF(lower(trim(g.payout_account)), '') )`, [id]) : [];
+  return admin ? { payment: gp, items, claims, flags } : { payment: gp, items, claims };
 }
 
 const gpAction = z.object({ action: z.enum(['process', 'pay', 'note']), transaction_id: z.string().optional(), notes: noteSchema });

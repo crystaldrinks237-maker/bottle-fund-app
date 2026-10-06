@@ -9,6 +9,7 @@ import { toPaisa, fromPaisa } from '../money';
 import { APP_TIMEZONE, ALLOWED_PROOF_TYPES, MAX_PROOF_BYTES } from '../config';
 import { formatMoney, formatDateTime } from '../format';
 import { DAY_START_SQL } from './accounts';
+import { defaultGuarantorId } from '../referrals';
 import type { CurrentUser } from '../session';
 import { isAdmin } from '../session';
 
@@ -179,15 +180,12 @@ export async function verifyInvestment(admin: CurrentUser, id: number) {
     if (!i) throw notFound('Investment not found');
     if (i.status !== 'PENDING_VERIFICATION') throw conflict(`This investment is already ${i.status.toLowerCase().replace(/_/g, ' ')}.`, 'ALREADY_PROCESSED');
     const c = calcInvestment({ cost_price: i.snap_cost_price, sell_price: i.snap_sell_price, op_cost: i.snap_op_cost, investor_pct: i.snap_investor_pct, guarantor_pct: i.snap_guarantor_pct }, i.amount);
-    // No guarantor on the investment → credit the guarantor share to the admin-chosen fallback account (Settings).
+    // Safety net for accounts with no guarantor on record (e.g. created before referral links): the guarantor share goes
+    // to the DEFAULT_GUARANTOR_USERNAME account. New sign-ups are assigned at sign-up time, so this is rarely needed.
     let gid: number | null = i.guarantor_id, isFallback = false;
     if (!gid) {
-      const [st] = await t.q(`SELECT value #>> '{}' AS v FROM settings WHERE key = 'fallback_guarantor_id'`);
-      const fid = st?.v ? parseInt(st.v, 10) : 0;
-      if (fid && fid !== i.investor_id) {
-        const [fu] = await t.q(`SELECT id FROM users WHERE id = $1 AND is_active AND 'GUARANTOR' = ANY(roles)`, [fid]);
-        if (fu) { gid = fu.id; isFallback = true; }
-      }
+      const fid = await defaultGuarantorId(t);
+      if (fid && fid !== i.investor_id) { gid = fid; isFallback = true; }
     }
     // verified_at and due_at come from the database clock, in one statement: due_at = verified_at + exactly 168 hours.
     const [row] = await t.q(

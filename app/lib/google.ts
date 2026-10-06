@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import { tx } from './db';
 import { audit } from './audit';
+import { assignGuarantorForNewUser } from './referrals';
 
 export interface GoogleProfile { sub?: string; email?: string; email_verified?: boolean; name?: string }
 export type GoogleResult = { id: number } | { error: string };
@@ -13,7 +14,7 @@ export type GoogleResult = { id: number } | { error: string };
  *    and explicitly connect Google from Profile (`linkUserId`), proving control of both;
  *  - brand-new Google users become INVESTORs only (admins/guarantors are created by an admin, then link Google themselves).
  */
-export async function resolveGoogleUser(p: GoogleProfile, linkUserId: number | null): Promise<GoogleResult> {
+export async function resolveGoogleUser(p: GoogleProfile, linkUserId: number | null, rememberedRef: string | null = null): Promise<GoogleResult> {
   if (!p.sub || !p.email || p.email_verified !== true) return { error: 'google_unverified' };
   const email = p.email.trim().toLowerCase();
   return tx<GoogleResult>(async t => {
@@ -40,9 +41,10 @@ export async function resolveGoogleUser(p: GoogleProfile, linkUserId: number | n
     for (let n = 0; (await t.q('SELECT 1 FROM users WHERE lower(username) = $1', [username])).length; n++) username = `${base}${Math.floor(1000 + Math.random() * 9000)}`;
     const unusable = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10); // nobody knows this password
     const [row] = await t.q(
-      `INSERT INTO users (username, password_hash, roles, full_name, email, google_sub, has_password) VALUES ($1,$2,ARRAY['INVESTOR'],$3,$4,$5,false) RETURNING id`,
+      `INSERT INTO users (username, password_hash, roles, full_name, email, google_sub, has_password) VALUES ($1,$2,ARRAY['INVESTOR','GUARANTOR'],$3,$4,$5,false) RETURNING id`,
       [username, unusable, (p.name || '').slice(0, 80) || null, email, p.sub]);
-    await audit(t, row.id, 'user.signed_up_google', 'user', row.id, { email });
+    const gid = await assignGuarantorForNewUser(t, { id: row.id, username }, null, rememberedRef);
+    await audit(t, row.id, 'user.signed_up_google', 'user', row.id, { email, guarantor_id: gid });
     return { id: row.id };
   });
 }
