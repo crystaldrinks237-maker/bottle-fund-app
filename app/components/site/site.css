@@ -1,0 +1,41 @@
+
+@tailwind base;       /* preflight is OFF (see tailwind.config.js); this only emits Tailwind's CSS variable defaults */
+@tailwind utilities;
+
+/* Scoped reset — the equivalent of Tailwind's preflight, applied ONLY inside the homepage wrapper so /funds is unaffected. */
+.mp, .mp *, .mp *::before, .mp *::after { box-sizing: border-box; border-width: 0; border-style: solid; border-color: currentColor; }
+.mp { font-family: 'Inter Variable', Inter, system-ui, sans-serif; font-size: 16px; line-height: 1.5; font-variant-numeric: normal; -webkit-font-smoothing: antialiased; color: #fff; }
+.mp h1, .mp h2, .mp h3, .mp h4, .mp h5, .mp h6 { font-family: inherit; font-size: inherit; font-weight: inherit; line-height: inherit; letter-spacing: inherit; color: inherit; margin: 0; }
+.mp p, .mp blockquote, .mp dl, .mp dd, .mp figure, .mp hr { margin: 0; }
+.mp ol, .mp ul { list-style: none; margin: 0; padding: 0; }
+.mp a { color: inherit; text-decoration: inherit; }
+.mp a:hover { text-decoration: inherit; }
+.mp img, .mp svg, .mp iframe { display: block; vertical-align: middle; }
+.mp img { max-width: 100%; height: auto; }
+.mp button, .mp input, .mp textarea { font-family: inherit; font-size: 100%; font-weight: inherit; line-height: inherit; color: inherit; margin: 0; padding: 0; letter-spacing: inherit; }
+.mp button { background: transparent; cursor: pointer; text-transform: none; -webkit-appearance: button; }
+.mp button:disabled { cursor: default; }
+.mp input, .mp textarea { background: transparent; border-radius: 0; }
+.mp textarea { resize: vertical; }
+.mp ::placeholder { opacity: 1; color: rgba(191, 203, 213, .4); }
+.mp table { border-collapse: collapse; text-indent: 0; border-color: inherit; }
+.mp fieldset { margin: 0; padding: 0; min-width: 0; }
+.mp legend { padding: 0; }
+.mp th { font-weight: inherit; }
+.mp [hidden] { display: none; }
+
+/* Page-level touches that only apply when the homepage is on screen */
+:root:has(.mp) { scroll-behavior: smooth; scroll-padding-top: 80px; }
+body:has(.mp) { background: #06172b; }
+
+/* Slow drifting water caustics */
+.caustic-drift { animation: caustic-drift 26s ease-in-out infinite alternate; will-change: transform; }
+@keyframes caustic-drift { from { transform: scale(1.12) translate3d(-2%, -1%, 0); } to { transform: scale(1.18) translate3d(2%, 1.5%, 0); } }
+/* Light reflection travelling across the bottle */
+.light-sweep { animation: light-sweep 8s ease-in-out infinite; will-change: transform; }
+@keyframes light-sweep { 0%, 55% { transform: translateX(-180%) skewX(-16deg); } 100% { transform: translateX(320%) skewX(-16deg); } }
+/* Liquid light sweep on buttons */
+.liquid-btn { position: relative; overflow: hidden; isolation: isolate; }
+.liquid-btn::after { content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 45%; background: var(--sweep, rgba(255, 255, 255, 0.18)); transform: translateX(-160%) skewX(-20deg); transition: transform 300ms cubic-bezier(0.65, 0, 0.35, 1); z-index: -1; pointer-events: none; }
+.liquid-btn:hover::after, .liquid-btn:focus-visible::after { transform: translateX(340%) skewX(-20deg); }
+@media (prefers-reduced-motion: reduce) { .caustic-drift, .light-sweep { animation: none; } .liquid-btn::after { display: none; } }

@@ -18,10 +18,13 @@ Tests: with a server running, `DATABASE_URL=… BASE=http://localhost:3000 node 
 ## Site layout (crystaldrinks.pk)
 - `/` — public homepage (about, price table, WhatsApp, contact form, map). No funding content, no email address.
 - `/funds/...` — the funding platform (login, signup, investor, guarantor and admin areas). Old URLs (e.g. `/login`, `/admin`, `/r/CODE`) redirect here.
-- Admin → **Website Prices** edits the homepage price table and map; Admin → **Website Messages** shows contact-form enquiries.
+- Admin → **Website (Sizes & Prices)** edits the homepage catalogue (sizes → qualities → prices, availability) and the map/address; Admin → **Website Messages** shows contact-form enquiries.
 
 ## Deploying the update
 1. `npm install`
 2. `DATABASE_URL=... npm run db:migrate` (applies `006_website.sql`: prices, settings, messages tables)
 3. Set env vars from `.env.example` (`NEXTAUTH_URL=https://www.crystaldrinks.pk`, optional `CONTACT_TO_EMAIL` + `RESEND_API_KEY` or `SMTP_*`).
 4. Update the Google OAuth redirect URI to `https://www.crystaldrinks.pk/api/auth/callback/google`.
+
+## Homepage styling
+The homepage uses Tailwind + framer-motion, scoped under a `.mp` wrapper (see `tailwind.config.js`, `components/site/site.css`) so it cannot affect `/funds`. Migration `007_catalogue.sql` creates the sizes/qualities tables.

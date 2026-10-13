@@ -4,46 +4,92 @@ import { audit } from '../audit';
 import { bad, notFound } from '../api';
 import type { CurrentUser } from '../session';
 
-export interface PriceRow { id: number; name: string; bottles_per_pack: number; pack_price: string | null; note: string | null; sort_order: number; is_active: boolean }
+export const QUALITIES = ['Clear', 'Getron', 'Mix', 'Pure'] as const;
+type Q = (typeof QUALITIES)[number];
 
-export async function publicPrices(): Promise<PriceRow[]> {
-  return query<PriceRow>('SELECT id, name, bottles_per_pack, pack_price, note, sort_order, is_active FROM bottle_prices WHERE is_active ORDER BY sort_order, id');
-}
 export async function getSiteSettings(): Promise<Record<string, string>> {
   const rows = await query<{ key: string; value: string }>('SELECT key, value FROM site_settings');
   return Object.fromEntries(rows.map(r => [r.key, r.value]));
 }
 
-const priceSchema = z.object({
-  name: z.string().trim().min(1, 'Enter a size name').max(60),
-  bottles_per_pack: z.coerce.number().int().min(1).max(500),
-  pack_price: z.union([z.literal(''), z.null(), z.coerce.number().min(0).max(100000000)]).transform(v => (v === '' || v === null ? null : v)),
-  note: z.string().trim().max(120).optional().nullable().transform(v => v || null),
+/** What the public homepage shows: only active sizes with at least one available quality. Stock levels are never exposed. */
+export async function publicCatalogue() {
+  const sizes = await query<any>('SELECT * FROM water_sizes WHERE is_active ORDER BY sort_order, id');
+  const quals = await query<any>('SELECT * FROM water_qualities WHERE is_active ORDER BY size_id, array_position(ARRAY[\'Clear\',\'Getron\',\'Mix\',\'Pure\'], quality)');
+  const money = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(2));
+  return sizes.map((s: any) => {
+    const qs = quals.filter((q: any) => q.size_id === s.id);
+    if (!qs.length) return null;
+    const prices: Record<string, { price: number; perBottle: string }> = {};
+    for (const q of qs) if (q.pack_price != null) {
+      const price = Number(q.pack_price);
+      prices[q.quality] = { price, perBottle: s.bottles_per_pack ? `Rs ${money(Math.round((price / s.bottles_per_pack) * 100) / 100)}` : '' };
+    }
+    const names: Q[] = qs.map((q: any) => q.quality);
+    return {
+      id: `size-${s.id}`, size: s.size_value, unit: s.unit, label: s.label, qualities: names,
+      defaultQuality: (names.find(n => prices[n]) || names[0]) as Q,
+      pack: s.bottles_per_pack as number | null, prices, note: s.note || undefined,
+      image: s.image_url || '/site/500ml.jpg', imageAlt: `${s.label} PET water bottle`,
+    };
+  }).filter(Boolean) as any[];
+}
+
+// ---- admin: sizes with their qualities -------------------------------------------------------------------
+const sizeSchema = z.object({
+  label: z.string().trim().min(1, 'Enter a size name, e.g. 500 ml').max(30),
+  size_value: z.string().trim().min(1, 'Enter the number, e.g. 500 or 1.5').max(10),
+  unit: z.enum(['ml', 'L']),
+  bottles_per_pack: z.union([z.literal(''), z.null(), z.coerce.number().int().min(1).max(500)]).transform(v => (v === '' || v === null ? null : v)),
+  note: z.string().trim().max(160).optional().nullable().transform(v => v || null),
+  image_url: z.string().trim().max(300).optional().nullable().transform(v => v || null)
+    .refine(v => !v || /^(\/|https:\/\/)/.test(v), 'Image must start with / or https://'),
   sort_order: z.coerce.number().int().min(0).max(10000).default(0),
   is_active: z.boolean().default(true),
+  qualities: z.array(z.object({
+    quality: z.enum(QUALITIES),
+    is_active: z.boolean(),
+    pack_price: z.union([z.literal(''), z.null(), z.coerce.number().min(0).max(100000000)]).transform(v => (v === '' || v === null ? null : v)),
+  })).max(4),
 });
 
-export const adminPrices = () => query<PriceRow>('SELECT * FROM bottle_prices ORDER BY sort_order, id');
-export async function createPrice(u: CurrentUser, body: unknown) {
-  const v = priceSchema.parse(body);
-  const [r] = await query<PriceRow>('INSERT INTO bottle_prices (name, bottles_per_pack, pack_price, note, sort_order, is_active) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
-    [v.name, v.bottles_per_pack, v.pack_price, v.note, v.sort_order, v.is_active]);
-  await audit(null, u.id, 'PRICE_CREATED', 'bottle_price', r.id, v);
-  return r;
+export async function adminSizes() {
+  const sizes = await query<any>('SELECT * FROM water_sizes ORDER BY sort_order, id');
+  const quals = await query<any>('SELECT * FROM water_qualities');
+  return sizes.map((s: any) => ({
+    ...s,
+    qualities: QUALITIES.map(q => { const r = quals.find((x: any) => x.size_id === s.id && x.quality === q); return { quality: q, is_active: r ? r.is_active : false, pack_price: r?.pack_price ?? null }; }),
+  }));
 }
-export async function updatePrice(u: CurrentUser, id: number, body: unknown) {
-  const v = priceSchema.parse(body);
-  const [old] = await query<PriceRow>('SELECT * FROM bottle_prices WHERE id = $1', [id]);
+async function saveQualities(sizeId: number, list: { quality: string; is_active: boolean; pack_price: number | null }[]) {
+  for (const q of list) {
+    await query(`INSERT INTO water_qualities (size_id, quality, pack_price, is_active) VALUES ($1,$2,$3,$4)
+                 ON CONFLICT (size_id, quality) DO UPDATE SET pack_price = EXCLUDED.pack_price, is_active = EXCLUDED.is_active`, [sizeId, q.quality, q.pack_price, q.is_active]);
+  }
+}
+export async function createSize(u: CurrentUser, body: unknown) {
+  const v = sizeSchema.parse(body);
+  const [r] = await query<any>('INSERT INTO water_sizes (label, size_value, unit, bottles_per_pack, note, image_url, sort_order, is_active) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id',
+    [v.label, v.size_value, v.unit, v.bottles_per_pack, v.note, v.image_url, v.sort_order, v.is_active]);
+  await saveQualities(r.id, v.qualities);
+  await audit(null, u.id, 'SIZE_CREATED', 'water_size', r.id, { label: v.label });
+  return { id: r.id };
+}
+export async function updateSize(u: CurrentUser, id: number, body: unknown) {
+  const v = sizeSchema.parse(body);
+  const [old] = await query<any>('SELECT * FROM water_sizes WHERE id = $1', [id]);
   if (!old) throw notFound();
-  const [r] = await query<PriceRow>('UPDATE bottle_prices SET name=$2, bottles_per_pack=$3, pack_price=$4, note=$5, sort_order=$6, is_active=$7, updated_at=now() WHERE id=$1 RETURNING *',
-    [id, v.name, v.bottles_per_pack, v.pack_price, v.note, v.sort_order, v.is_active]);
-  await audit(null, u.id, 'PRICE_UPDATED', 'bottle_price', id, { from: old.pack_price, to: v.pack_price, name: v.name });
-  return r;
+  const oldQ = await query<any>('SELECT quality, pack_price, is_active FROM water_qualities WHERE size_id = $1', [id]);
+  await query('UPDATE water_sizes SET label=$2, size_value=$3, unit=$4, bottles_per_pack=$5, note=$6, image_url=$7, sort_order=$8, is_active=$9, updated_at=now() WHERE id=$1',
+    [id, v.label, v.size_value, v.unit, v.bottles_per_pack, v.note, v.image_url, v.sort_order, v.is_active]);
+  await saveQualities(id, v.qualities);
+  await audit(null, u.id, 'SIZE_UPDATED', 'water_size', id, { label: v.label, before: oldQ, after: v.qualities });
+  return { ok: true };
 }
-export async function deletePrice(u: CurrentUser, id: number) {
-  const r = await query('DELETE FROM bottle_prices WHERE id = $1 RETURNING id', [id]);
+export async function deleteSize(u: CurrentUser, id: number) {
+  const r = await query('DELETE FROM water_sizes WHERE id = $1 RETURNING id', [id]);
   if (!r.length) throw notFound();
-  await audit(null, u.id, 'PRICE_DELETED', 'bottle_price', id);
+  await audit(null, u.id, 'SIZE_DELETED', 'water_size', id);
   return { ok: true };
 }
 export async function updateSiteSettings(u: CurrentUser, body: any) {
@@ -51,7 +97,7 @@ export async function updateSiteSettings(u: CurrentUser, body: any) {
   let embed = String(body?.map_embed ?? '').trim();
   // Accept either the bare URL or the whole <iframe …> snippet Google gives you; keep only a google.com/maps/embed src.
   const m = embed.match(/src="([^"]+)"/); if (m) embed = m[1];
-  if (embed && !/^https:\/\/www\.google\.com\/maps\/embed/.test(embed)) throw bad('Map embed must be the link from Google Maps → Share → Embed a map.');
+  if (embed && !/^https:\/\/(www\.google\.com\/maps\/embed|maps\.google\.com\/maps\?)/.test(embed)) throw bad('Map embed must be the link from Google Maps → Share → Embed a map.');
   for (const [k, v] of [['address', address], ['map_embed', embed]]) await query('INSERT INTO site_settings (key, value) VALUES ($1,$2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value', [k, v]);
   await audit(null, u.id, 'SITE_SETTINGS_UPDATED', 'site_settings', null);
   return { address, map_embed: embed };
