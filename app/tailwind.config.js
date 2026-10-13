@@ -1,6 +1,6 @@
 /** Tailwind is used ONLY for the public homepage (app/page.tsx + components/site). The funding app (/funds) keeps its own CSS. */
 module.exports = {
-  content: ['./app/page.tsx', './components/site/**/*.{ts,tsx}'],
+  content: ['./app/page.tsx', './app/review/**/*.tsx', './components/site/**/*.{ts,tsx}'],
   important: '.mp', // every utility is scoped under the homepage wrapper, so nothing can leak into /funds
   corePlugins: { preflight: false }, // a scoped reset lives in components/site/site.css instead
   theme: {

@@ -13,9 +13,10 @@ import { HowToOrder } from './HowToOrder';
 import { ContactSection } from './ContactSection';
 import { Footer } from './Footer';
 import { WhatsAppFloat } from './WhatsAppFloat';
+import { Reviews, type PublicReview } from './Reviews';
 import type { Product } from './types';
 
-export function SiteHome({ products, address, mapEmbed }: { products: Product[]; address: string; mapEmbed: string }) {
+export function SiteHome({ products, address, mapEmbed, reviews }: { products: Product[]; address: string; mapEmbed: string; reviews: { rows: PublicReview[]; count: number; average: number } }) {
   return (
     <div className="mp w-full bg-midnight font-sans">
       <Navigation />
@@ -24,6 +25,7 @@ export function SiteHome({ products, address, mapEmbed }: { products: Product[];
         <BrandStory />
         <ProductCatalogue products={products} />
         <HowToOrder />
+        <Reviews reviews={reviews.rows} count={reviews.count} average={reviews.average} />
         <ContactSection address={address} mapEmbed={mapEmbed} />
       </main>
       <Footer address={address} />
