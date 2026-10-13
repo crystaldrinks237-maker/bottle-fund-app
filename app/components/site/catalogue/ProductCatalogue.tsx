@@ -59,7 +59,7 @@ export function ProductCatalogue({ products }: { products: Product[] }) {
               return (
                 <button
                   key={p.id}
-                  ref={(el) => tabRefs.current[i] = el}
+                  ref={(el) => { tabRefs.current[i] = el; }}
                   role="tab"
                   id={`tab-${p.id}`}
                   aria-selected={selected}
