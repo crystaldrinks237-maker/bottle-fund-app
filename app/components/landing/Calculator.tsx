@@ -28,7 +28,7 @@ export function Calculator({ initial }: { initial: any }) {
   if (!initial.need) return (
     <div className="calc card" id="calculator"><div className="calc-body"><h2>Profit calculator</h2>
       <p className="muted" style={{ marginTop: 8 }}>No funding needs are open right now, so there’s nothing to calculate yet. New opportunities appear here the moment they open.</p>
-      <Link className="btn btn-primary" style={{ marginTop: 16 }} href="/signup">Create an account to be notified</Link></div></div>
+      <Link className="btn btn-primary" style={{ marginTop: 16 }} href="/funds/signup">Create an account to be notified</Link></div></div>
   );
   const n = d.need, inv = d.invest, ref = d.referral;
   return (
@@ -68,8 +68,8 @@ export function Calculator({ initial }: { initial: any }) {
         </div>
 
         <div className="row" style={{ marginTop: 18 }}>
-          <Link className="btn btn-primary" style={{ height: 44 }} href="/signup">Start investing</Link>
-          <Link className="btn" style={{ height: 44 }} href="/login">Sign in</Link>
+          <Link className="btn btn-primary" style={{ height: 44 }} href="/funds/signup">Start investing</Link>
+          <Link className="btn" style={{ height: 44 }} href="/funds/login">Sign in</Link>
         </div>
         <p className="small muted" style={{ marginTop: 12 }}>Figures use the terms of the funding need you select. Your payout is due 7 days (168 hours) after we verify your payment; guarantor earnings are paid once a month. This is a calculation, not a promise — only commit what you’re comfortable having tied up for the cycle.</p>
       </div>

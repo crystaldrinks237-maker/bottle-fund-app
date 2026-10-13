@@ -37,7 +37,7 @@ export function InvestmentDetail({ id, admin }: { id: number; admin?: boolean })
           {s === 'PENDING_VERIFICATION' && <div className="notice warn">Waiting for payment verification. The 7-day countdown starts only once an administrator verifies your payment.</div>}
           <div className="card"><div className="card-head"><h2>Investment</h2></div><div className="card-pad">
             <KV items={[
-              ['Funding need', admin ? <Link href={`/admin/funding-needs/${i.funding_need_id}`}>{i.snap_title}</Link> : i.snap_title], ['Product', i.snap_product],
+              ['Funding need', admin ? <Link href={`/funds/admin/funding-needs/${i.funding_need_id}`}>{i.snap_title}</Link> : i.snap_title], ['Product', i.snap_product],
               ['Investment amount', <MoneyDisplay value={i.amount} strong />], ['Investor profit share', pct(i.snap_investor_pct)],
               [verified ? 'Expected profit' : 'Expected profit (estimate)', <MoneyDisplay value={i.expected_investor_profit} />],
               [verified ? 'Expected return' : 'Expected return (estimate)', <MoneyDisplay value={i.expected_total_return} strong />],

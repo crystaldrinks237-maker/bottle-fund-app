@@ -18,7 +18,7 @@ export const LINK_COOKIE = 'cd_google_link';
 
 export const authOptions: NextAuthOptions = {
   session: { strategy: 'jwt', maxAge: 60 * 60 * 12 },
-  pages: { signIn: '/login' },
+  pages: { signIn: '/funds/login' },
   providers: [
     ...(googleEnabled ? [GoogleProvider({ clientId: process.env.GOOGLE_CLIENT_ID!, clientSecret: process.env.GOOGLE_CLIENT_SECRET! })] : []),
     CredentialsProvider({
@@ -60,7 +60,7 @@ export const authOptions: NextAuthOptions = {
       } catch {}
       let remembered: string | null = null; try { remembered = cookies().get(REF_COOKIE)?.value || null; } catch {}
       const r = await resolveGoogleUser(profile as any, linkUserId, remembered);
-      if ('error' in r) return `/${linkUserId ? 'profile' : 'login'}?error=${r.error}`;
+      if ('error' in r) return `/funds/${linkUserId ? 'profile' : 'login'}?error=${r.error}`;
       (user as any).id = String(r.id);
       return true;
     },

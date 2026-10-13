@@ -39,6 +39,6 @@ export async function assignGuarantorForNewUser(t: Tx, newUser: { id: number; us
   if (!gid) gid = await defaultGuarantorId(t);
   if (!gid || gid === newUser.id) return null;
   await t.q('INSERT INTO guarantor_relationships (investor_id, guarantor_id, created_by) VALUES ($1,$2,$1) ON CONFLICT (investor_id) DO NOTHING', [newUser.id, gid]);
-  if (referred) await notify(t, gid, { type: 'REFERRAL_JOINED', title: 'Someone joined with your link', body: `@${newUser.username} signed up as your referral.`, link: '/guarantor' });
+  if (referred) await notify(t, gid, { type: 'REFERRAL_JOINED', title: 'Someone joined with your link', body: `@${newUser.username} signed up as your referral.`, link: '/funds/guarantor' });
   return gid;
 }

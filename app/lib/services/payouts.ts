@@ -74,7 +74,7 @@ export async function actOnPayout(admin: CurrentUser, id: number, raw: unknown) 
       [id, txn, paidTo, admin.id, b.notes || null]);
     await t.q(`UPDATE investments SET status = 'COMPLETED', updated_at = now() WHERE id = $1`, [p.investment_id]);
     await audit(t, admin.id, 'payout.paid', 'payout', id, { amount: p.amount, transaction_id: txn, investment_id: p.investment_id, ...(p.investor_id === admin.id ? { self_review: true } : {}) });
-    await notify(t, p.investor_id, { type: 'PAYOUT_PAID', title: 'Payout sent', body: `${formatMoney(p.amount)} has been sent. Transaction ID: ${txn}`, link: `/investments/${p.investment_id}` });
+    await notify(t, p.investor_id, { type: 'PAYOUT_PAID', title: 'Payout sent', body: `${formatMoney(p.amount)} has been sent. Transaction ID: ${txn}`, link: `/funds/investments/${p.investment_id}` });
     return row;
   });
 }

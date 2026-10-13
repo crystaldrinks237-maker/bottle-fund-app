@@ -43,7 +43,7 @@ export function InvestForm({ need }: { need: any }) {
     try {
       const r = await api('/api/investments', { method: 'POST', body: fd });
       toast.success(r.duplicate ? 'This investment was already submitted.' : 'Investment submitted for verification.');
-      router.push(`/investments/${r.investment.id}`);
+      router.push(`/funds/investments/${r.investment.id}`);
     } catch (e: any) {
       if (e instanceof ApiFail && ['ACCOUNT_CHANGED', 'NO_ACCOUNT', 'NEED_FULL', 'OVER_REMAINING', 'BELOW_MIN'].includes(e.code || '')) { setBanner(e.message); refetch(); setConfirm(false); return; }
       throw e;

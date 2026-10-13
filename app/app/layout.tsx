@@ -4,7 +4,7 @@ import './globals.css';
 import type { Metadata, Viewport } from 'next';
 import Providers from './providers';
 
-export const metadata: Metadata = { title: { default: 'Crystal Drinks Funding', template: '%s · Crystal Drinks' }, description: 'Crystal Drinks funding management platform', icons: { icon: '/icon.png' } };
+export const metadata: Metadata = { metadataBase: new URL(process.env.NEXTAUTH_URL || 'https://www.crystaldrinks.pk'), title: { default: 'Crystal Drinks', template: '%s · Crystal Drinks' }, description: 'Crystal Drinks — clean, safe drinking water in PET bottles.', icons: { icon: '/icon.png' } };
 export const viewport: Viewport = { width: 'device-width', initialScale: 1, themeColor: '#1877B4' };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

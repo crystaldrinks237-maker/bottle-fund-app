@@ -33,7 +33,7 @@ export async function submitMine(user: CurrentUser, raw: unknown) {
              status = 'PENDING', reviewed_by = NULL, reviewed_at = NULL, updated_at = now()   -- any edit goes back through approval
        RETURNING id, status`, [user.id, v.display_name, v.city || null, v.rating, v.body]);
     await audit(t, user.id, 'testimonial.submitted', 'testimonial', row.id, { rating: v.rating });
-    await notifyAdmins(t, { type: 'TESTIMONIAL_PENDING', title: 'New review to approve', body: `${v.display_name} · ${v.rating}★`, link: '/admin/testimonials?status=PENDING' });
+    await notifyAdmins(t, { type: 'TESTIMONIAL_PENDING', title: 'New review to approve', body: `${v.display_name} · ${v.rating}★`, link: '/funds/admin/testimonials?status=PENDING' });
     return row;
   });
 }
@@ -70,7 +70,7 @@ export async function actOnTestimonial(admin: CurrentUser, id: number, raw: unkn
     if (cur.status === next) throw conflict(`This review is already ${next.toLowerCase()}.`);
     const [row] = await t.q(`UPDATE testimonials SET status = $2, reviewed_by = $3, reviewed_at = now(), admin_note = COALESCE($4, admin_note), updated_at = now() WHERE id = $1 RETURNING *`, [id, next, admin.id, b.note || null]);
     await audit(t, admin.id, `testimonial.${b.action === 'approve' ? 'approved' : 'rejected'}`, 'testimonial', id, { note: b.note || null });
-    if (cur.investor_id && b.action === 'approve') await notify(t, cur.investor_id, { type: 'TESTIMONIAL_APPROVED', title: 'Your review is now live', body: 'Thank you for sharing your experience.', link: '/dashboard' });
+    if (cur.investor_id && b.action === 'approve') await notify(t, cur.investor_id, { type: 'TESTIMONIAL_APPROVED', title: 'Your review is now live', body: 'Thank you for sharing your experience.', link: '/funds/dashboard' });
     return row;
   });
 }

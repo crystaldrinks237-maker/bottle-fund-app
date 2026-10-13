@@ -5,7 +5,7 @@ export function AuthShell({ title, subtitle, children }: { title: string; subtit
   return (
     <div className="auth">
       <div className="auth-form">
-        <Link href="/" aria-label="Crystal Drinks home"><Image src="/logo.png" alt="Crystal Drinks" width={116} height={124} className="logo" priority /></Link>
+        <Link href="/funds" aria-label="Crystal Drinks home"><Image src="/logo.png" alt="Crystal Drinks" width={116} height={124} className="logo" priority /></Link>
         <h1>{title}</h1>
         <p className="muted" style={{ margin: '6px 0 24px' }}>{subtitle}</p>
         {children}

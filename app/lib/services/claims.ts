@@ -31,8 +31,8 @@ export async function createClaim(user: CurrentUser, raw: unknown) {
     const [claim] = await t.q(`INSERT INTO payment_claims (${col}, claimant_id, reason) VALUES ($1,$2,$3) RETURNING *`, [targetId, user.id, v.reason]);
     await t.q(`UPDATE ${table} SET status = 'CLAIMED_NOT_RECEIVED', updated_at = now() WHERE id = $1`, [targetId]);
     await audit(t, user.id, 'payment_claim.opened', 'payment_claim', claim.id, { [col]: targetId, amount: target.amount, transaction_id: target.transaction_id });
-    await notifyAdmins(t, { type: 'CLAIM_OPENED', title: 'Payment claim opened', body: `${user.username} reports not receiving ${formatMoney(target.amount)}.`, link: `/admin/claims?id=${claim.id}` });
-    await notify(t, user.id, { type: 'CLAIM_SUBMITTED', title: 'Your claim has been submitted', body: 'An administrator will review the payment and update you here.', link: isGp ? '/guarantor/payments' : `/payouts` });
+    await notifyAdmins(t, { type: 'CLAIM_OPENED', title: 'Payment claim opened', body: `${user.username} reports not receiving ${formatMoney(target.amount)}.`, link: `/funds/admin/claims?id=${claim.id}` });
+    await notify(t, user.id, { type: 'CLAIM_SUBMITTED', title: 'Your claim has been submitted', body: 'An administrator will review the payment and update you here.', link: isGp ? '/funds/guarantor/payments' : `/funds/payouts` });
     return { claim, duplicate: false };
   });
 }
@@ -86,7 +86,7 @@ export async function actOnClaim(admin: CurrentUser, id: number, raw: unknown) {
       if (c.status === 'UNDER_REVIEW') throw conflict('This claim is already under review.', 'ALREADY_PROCESSED');
       const [row] = await t.q(`UPDATE payment_claims SET status = 'UNDER_REVIEW', updated_at = now() WHERE id = $1 RETURNING *`, [id]);
       await audit(t, admin.id, 'payment_claim.under_review', 'payment_claim', id, {});
-      await notify(t, c.claimant_id, { type: 'CLAIM_UPDATED', title: 'Your claim is being reviewed', link: isGp ? '/guarantor/payments' : '/payouts' });
+      await notify(t, c.claimant_id, { type: 'CLAIM_UPDATED', title: 'Your claim is being reviewed', link: isGp ? '/funds/guarantor/payments' : '/funds/payouts' });
       return row;
     }
     const note = reasonSchema.parse(b.resolution_note);
@@ -99,7 +99,7 @@ export async function actOnClaim(admin: CurrentUser, id: number, raw: unknown) {
     // rejected → payment reverts to PAID (the original payment stands); resolved → RESOLVED (+ replacement transaction if issued)
     await t.q(`UPDATE ${table} SET status = $2, replacement_transaction_id = COALESCE($3, replacement_transaction_id), updated_at = now() WHERE id = $1`, [tid, resolved ? 'RESOLVED' : 'PAID', resolved ? repl : null]);
     await audit(t, admin.id, resolved ? 'payment_claim.resolved' : 'payment_claim.rejected', 'payment_claim', id, { [isGp ? 'guarantor_payment_id' : 'payout_id']: tid, replacement_transaction_id: repl, resolution_note: note });
-    await notify(t, c.claimant_id, { type: 'CLAIM_UPDATED', title: resolved ? 'Your claim was resolved' : 'Your claim was reviewed', body: note + (repl ? ` Replacement transaction ID: ${repl}` : ''), link: isGp ? '/guarantor/payments' : '/payouts' });
+    await notify(t, c.claimant_id, { type: 'CLAIM_UPDATED', title: resolved ? 'Your claim was resolved' : 'Your claim was reviewed', body: note + (repl ? ` Replacement transaction ID: ${repl}` : ''), link: isGp ? '/funds/guarantor/payments' : '/funds/payouts' });
     return row;
   });
 }

@@ -169,7 +169,7 @@ export async function generateSettlement(admin: CurrentUser, month: string) {
       const [{ total }] = await t.q('SELECT COALESCE(SUM(amount),0) AS total FROM guarantor_payment_items WHERE guarantor_payment_id = $1', [gp.id]);
       const [row] = await t.q('UPDATE guarantor_payments SET amount = $2, updated_at = now() WHERE id = $1 RETURNING *', [gp.id, total]);
       await audit(t, admin.id, isNew ? 'guarantor_payment.created' : 'guarantor_payment.refreshed', 'guarantor_payment', gp.id, { guarantor_id: gid, period_month: m, amount: row.amount });
-      await notify(t, gid, { type: 'EARNINGS_FINALIZED', title: `${formatMonth(m)} earnings finalized`, body: `${formatMoney(row.amount)} will be paid to you.`, link: '/guarantor/payments' });
+      await notify(t, gid, { type: 'EARNINGS_FINALIZED', title: `${formatMonth(m)} earnings finalized`, body: `${formatMoney(row.amount)} will be paid to you.`, link: '/funds/guarantor/payments' });
     }
     return { created, refreshed, skipped };
   });
@@ -252,7 +252,7 @@ export async function actOnGuarantorPayment(admin: CurrentUser, id: number, raw:
     const [row] = await t.q(`UPDATE guarantor_payments SET status = 'PAID', transaction_id = $2, paid_at = now(), paid_to = $3, processed_by = $4, notes = COALESCE($5, notes), updated_at = now() WHERE id = $1 RETURNING *`,
       [id, txn, paidTo, admin.id, b.notes || null]);
     await audit(t, admin.id, 'guarantor_payment.paid', 'guarantor_payment', id, { amount: gp.amount, transaction_id: txn, period_month: gp.period_month });
-    await notify(t, gp.guarantor_id, { type: 'GUARANTOR_PAID', title: 'Payment sent', body: `${formatMoney(gp.amount)} for ${formatMonth(gp.period_month)}. Transaction ID: ${txn}`, link: '/guarantor/payments' });
+    await notify(t, gp.guarantor_id, { type: 'GUARANTOR_PAID', title: 'Payment sent', body: `${formatMoney(gp.amount)} for ${formatMonth(gp.period_month)}. Transaction ID: ${txn}`, link: '/funds/guarantor/payments' });
     return row;
   });
 }

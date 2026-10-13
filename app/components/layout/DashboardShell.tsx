@@ -11,16 +11,16 @@ import { formatDateTime } from '@/lib/format';
 interface Item { href: string; label: string; icon: string; exact?: boolean }
 const NAV: Record<string, { title: string; items: Item[] }> = {
   ADMIN: { title: 'Operations', items: [
-    { href: '/admin', label: 'Overview', icon: 'dashboard', exact: true }, { href: '/admin/funding-needs', label: 'Funding Needs', icon: 'layers' },
-    { href: '/admin/investments', label: 'Investments', icon: 'wallet' }, { href: '/admin/payment-accounts', label: 'Payment Accounts', icon: 'card' },
-    { href: '/admin/investors', label: 'Investors', icon: 'users' }, { href: '/admin/guarantors', label: 'Guarantors', icon: 'shield' },
-    { href: '/admin/payouts', label: 'Investor Payouts', icon: 'cash' }, { href: '/admin/guarantor-payments', label: 'Guarantor Payments', icon: 'calendar' },
-    { href: '/admin/claims', label: 'Payment Claims', icon: 'flag' }, { href: '/admin/testimonials', label: 'Testimonials', icon: 'star' }, { href: '/admin/activity', label: 'Activity Log', icon: 'list' }, { href: '/admin/settings', label: 'Settings', icon: 'gear' } ] },
+    { href: '/funds/admin', label: 'Overview', icon: 'dashboard', exact: true }, { href: '/funds/admin/funding-needs', label: 'Funding Needs', icon: 'layers' },
+    { href: '/funds/admin/investments', label: 'Investments', icon: 'wallet' }, { href: '/funds/admin/payment-accounts', label: 'Payment Accounts', icon: 'card' },
+    { href: '/funds/admin/investors', label: 'Investors', icon: 'users' }, { href: '/funds/admin/guarantors', label: 'Guarantors', icon: 'shield' },
+    { href: '/funds/admin/payouts', label: 'Investor Payouts', icon: 'cash' }, { href: '/funds/admin/guarantor-payments', label: 'Guarantor Payments', icon: 'calendar' },
+    { href: '/funds/admin/claims', label: 'Payment Claims', icon: 'flag' }, { href: '/funds/admin/testimonials', label: 'Testimonials', icon: 'star' }, { href: '/funds/admin/activity', label: 'Activity Log', icon: 'list' }, { href: '/funds/admin/website', label: 'Website Prices', icon: 'layers' }, { href: '/funds/admin/messages', label: 'Website Messages', icon: 'list' }, { href: '/funds/admin/settings', label: 'Settings', icon: 'gear' } ] },
   INVESTOR: { title: 'Investing', items: [
-    { href: '/dashboard', label: 'Dashboard', icon: 'dashboard', exact: true }, { href: '/investments', label: 'My Investments', icon: 'wallet' },
-    { href: '/funding-needs', label: 'Funding Needs', icon: 'layers' }, { href: '/payouts', label: 'Payouts', icon: 'cash' }, { href: '/profile', label: 'Profile', icon: 'user' } ] },
+    { href: '/funds/dashboard', label: 'Dashboard', icon: 'dashboard', exact: true }, { href: '/funds/investments', label: 'My Investments', icon: 'wallet' },
+    { href: '/funds/funding-needs', label: 'Funding Needs', icon: 'layers' }, { href: '/funds/payouts', label: 'Payouts', icon: 'cash' }, { href: '/funds/profile', label: 'Profile', icon: 'user' } ] },
   GUARANTOR: { title: 'Earn by referring', items: [
-    { href: '/guarantor', label: 'My Referrals', icon: 'users', exact: true }, { href: '/guarantor/payments', label: 'Referral Payments', icon: 'calendar' } ] },
+    { href: '/funds/guarantor', label: 'My Referrals', icon: 'users', exact: true }, { href: '/funds/guarantor/payments', label: 'Referral Payments', icon: 'calendar' } ] },
 };
 
 function Bell() {
@@ -37,10 +37,10 @@ function Bell() {
         <div className="popover">
           <div className="card-head"><h3>Notifications</h3>{d.unread > 0 && <button className="btn btn-sm btn-ghost" onClick={async () => { await api('/api/notifications', { method: 'POST', json: {} }); load(); }}>Mark all read</button>}</div>
           {d.rows.length === 0 ? <p className="muted" style={{ padding: 20 }}>You’re all caught up.</p> : d.rows.map((n: any) => (
-            <Link key={n.id} href={n.link || '/notifications'} className={`notif ${n.read_at ? '' : 'unread'}`} onClick={() => { setOpen(false); if (!n.read_at) api('/api/notifications', { method: 'POST', json: { id: n.id } }).then(load); }}>
+            <Link key={n.id} href={n.link || '/funds/notifications'} className={`notif ${n.read_at ? '' : 'unread'}`} onClick={() => { setOpen(false); if (!n.read_at) api('/api/notifications', { method: 'POST', json: { id: n.id } }).then(load); }}>
               <b>{n.title}</b>{n.body && <span>{n.body}</span>}<span className="faint" style={{ display: 'block', marginTop: 2 }}>{formatDateTime(n.created_at)}</span>
             </Link>))}
-          <Link href="/notifications" className="notif" style={{ textAlign: 'center', color: 'var(--blue)', fontWeight: 700 }} onClick={() => setOpen(false)}>View all</Link>
+          <Link href="/funds/notifications" className="notif" style={{ textAlign: 'center', color: 'var(--blue)', fontWeight: 700 }} onClick={() => setOpen(false)}>View all</Link>
         </div>
       )}
     </div>
@@ -52,7 +52,7 @@ export function DashboardShell({ user, viewingAs, children }: { user: { username
   useEffect(() => setOpen(false), [path]);
   const groups = (['ADMIN', 'INVESTOR', 'GUARANTOR'] as const).filter(r => user.roles.includes(r)).map(r => NAV[r]);
   const active = (i: Item) => (i.exact ? path === i.href : path === i.href || path.startsWith(i.href + '/'));
-  async function exitView() { try { await api('/api/admin/impersonate', { method: 'DELETE' }); } finally { window.location.href = '/admin'; } }
+  async function exitView() { try { await api('/api/admin/impersonate', { method: 'DELETE' }); } finally { window.location.href = '/funds/admin'; } }
   return (
     <>
     {viewingAs && (
@@ -63,7 +63,7 @@ export function DashboardShell({ user, viewingAs, children }: { user: { username
     )}
     <div className={`shell ${viewingAs ? 'has-banner' : ''}`}>
       <aside className={`sidebar ${open ? 'open' : ''}`} aria-label="Main navigation">
-        <Link href="/" className="brand" style={{ textDecoration: 'none' }}>
+        <Link href="/funds" className="brand" style={{ textDecoration: 'none' }}>
           <Image src="/logo.png" alt="Crystal Drinks" width={54} height={58} priority /><div><b>Crystal Drinks</b><span>Funding platform</span></div>
         </Link>
         {groups.map(g => (
@@ -76,8 +76,8 @@ export function DashboardShell({ user, viewingAs, children }: { user: { username
           <div style={{ fontWeight: 700 }}>{user.full_name || user.username}</div>
           <div className="small muted" style={{ marginBottom: 8 }}>@{user.username} · {user.roles.map(r => r.toLowerCase()).join(', ')}</div>
           <div className="row" style={{ gap: 4 }}>
-            <Link href="/profile" className="btn btn-sm btn-ghost" style={{ paddingLeft: 0 }}><Icon name="user" />My profile</Link>
-            <button className="btn btn-sm btn-ghost" onClick={() => signOut({ callbackUrl: '/login' })}><Icon name="logout" />Sign out</button>
+            <Link href="/funds/profile" className="btn btn-sm btn-ghost" style={{ paddingLeft: 0 }}><Icon name="user" />My profile</Link>
+            <button className="btn btn-sm btn-ghost" onClick={() => signOut({ callbackUrl: '/funds/login' })}><Icon name="logout" />Sign out</button>
           </div>
         </div>
       </aside>

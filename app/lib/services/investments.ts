@@ -27,8 +27,8 @@ export async function materializeDue() {
       `UPDATE investments SET status = 'PAYOUT_DUE', updated_at = now() WHERE status = 'VERIFIED' AND due_at <= now()
        RETURNING id, investor_id, expected_total_return`);
     for (const r of rows) {
-      await notify(t, r.investor_id, { type: 'PAYOUT_DUE', title: 'Your payout is due', body: `Investment #${r.id}: ${formatMoney(r.expected_total_return)} is now due and will be sent shortly.`, link: `/investments/${r.id}` });
-      await notifyAdmins(t, { type: 'PAYOUT_DUE', title: 'Investor payout due', body: `Investment #${r.id} — ${formatMoney(r.expected_total_return)}`, link: '/admin/payouts?status=DUE' });
+      await notify(t, r.investor_id, { type: 'PAYOUT_DUE', title: 'Your payout is due', body: `Investment #${r.id}: ${formatMoney(r.expected_total_return)} is now due and will be sent shortly.`, link: `/funds/investments/${r.id}` });
+      await notifyAdmins(t, { type: 'PAYOUT_DUE', title: 'Investor payout due', body: `Investment #${r.id} — ${formatMoney(r.expected_total_return)}`, link: '/funds/admin/payouts?status=DUE' });
     }
   });
 }
@@ -162,8 +162,8 @@ export async function submitInvestment(user: CurrentUser, form: FormData) {
       await t.q(`UPDATE funding_needs SET funded_amount = $2, status = CASE WHEN $2::numeric >= total_capital THEN 'FULL' ELSE status END, updated_at = now() WHERE id = $1`, [needId, fromPaisa(newFunded)]);
       await t.q('UPDATE payment_accounts SET allocated_amount = allocated_amount + $2, updated_at = now() WHERE id = $1', [acct.id, amount]);
       await audit(t, user.id, 'investment.submitted', 'investment', row.id, { funding_need_id: needId, amount, payment_account_id: acct.id, proof_id: proof.id });
-      await notify(t, user.id, { type: 'INVESTMENT_SUBMITTED', title: 'Investment submitted', body: `${formatMoney(amount)} for ${need.title} is waiting for payment verification.`, link: `/investments/${row.id}` });
-      await notifyAdmins(t, { type: 'VERIFICATION_PENDING', title: 'New investment to verify', body: `${user.username} — ${formatMoney(amount)} for ${need.title}`, link: `/admin/investments?status=PENDING_VERIFICATION` });
+      await notify(t, user.id, { type: 'INVESTMENT_SUBMITTED', title: 'Investment submitted', body: `${formatMoney(amount)} for ${need.title} is waiting for payment verification.`, link: `/funds/investments/${row.id}` });
+      await notifyAdmins(t, { type: 'VERIFICATION_PENDING', title: 'New investment to verify', body: `${user.username} — ${formatMoney(amount)} for ${need.title}`, link: `/funds/admin/investments?status=PENDING_VERIFICATION` });
       return row;
     });
     return { investment: inv, duplicate: false };
@@ -197,9 +197,9 @@ export async function verifyInvestment(admin: CurrentUser, id: number) {
     await t.q(`INSERT INTO payouts (investment_id, investor_id, amount, principal, profit, status, due_at) VALUES ($1,$2,$3,$4,$5,'DUE',$6)`,
       [id, i.investor_id, c.total_return, i.amount, c.investor_profit, row.due_at]);
     await audit(t, admin.id, 'investment.verified', 'investment', id, { amount: i.amount, verified_at: row.verified_at, due_at: row.due_at, expected_total_return: c.total_return, ...(i.investor_id === admin.id ? { self_review: true } : {}) });
-    await notify(t, i.investor_id, { type: 'PAYMENT_VERIFIED', title: 'Payment verified', body: `Your ${formatMoney(i.amount)} investment is confirmed. Payout of ${formatMoney(c.total_return)} is due on ${formatDateTime(row.due_at)}.`, link: `/investments/${id}` });
+    await notify(t, i.investor_id, { type: 'PAYMENT_VERIFIED', title: 'Payment verified', body: `Your ${formatMoney(i.amount)} investment is confirmed. Payout of ${formatMoney(c.total_return)} is due on ${formatDateTime(row.due_at)}.`, link: `/funds/investments/${id}` });
     if (gid && toPaisa(c.guarantor_profit) > 0n)
-      await notify(t, gid, { type: 'REFERRAL_VERIFIED', title: isFallback ? 'Fallback guarantor share credited' : 'A referred investment was verified', body: `Earnings of ${formatMoney(c.guarantor_profit)} added to this month.`, link: '/guarantor' });
+      await notify(t, gid, { type: 'REFERRAL_VERIFIED', title: isFallback ? 'Fallback guarantor share credited' : 'A referred investment was verified', body: `Earnings of ${formatMoney(c.guarantor_profit)} added to this month.`, link: '/funds/guarantor' });
     return row;
   });
 }
@@ -219,7 +219,7 @@ export async function rejectInvestment(admin: CurrentUser, id: number, rawReason
       await t.q('UPDATE payment_accounts SET allocated_amount = GREATEST(0, allocated_amount - $2), updated_at = now() WHERE id = $1', [i.payment_account_id, i.amount]);
     }
     await audit(t, admin.id, 'investment.rejected', 'investment', id, { amount: i.amount, reason, ...(i.investor_id === admin.id ? { self_review: true } : {}) });
-    await notify(t, i.investor_id, { type: 'PAYMENT_REJECTED', title: 'Payment could not be verified', body: `Reason: ${reason}`, link: `/investments/${id}` });
+    await notify(t, i.investor_id, { type: 'PAYMENT_REJECTED', title: 'Payment could not be verified', body: `Reason: ${reason}`, link: `/funds/investments/${id}` });
     return row;
   });
 }
