@@ -9,7 +9,7 @@ export function Footer({ address }: { address: string }) {
     <footer className="w-full border-t border-white/10 bg-[#041121] text-silver">
       <div className="mx-auto grid max-w-7xl grid-cols-1 gap-12 px-6 py-16 md:grid-cols-12 lg:px-10">
         <div className="md:col-span-5">
-          <Logo />
+          <span className="inline-block rounded-sm bg-white px-4 py-3"><Logo className="h-14" /></span>
           <p className="mt-6 max-w-sm text-sm leading-relaxed text-silver/80">
             Clean, refreshing drinking water for homes, shops and businesses — with clear prices and simple ordering.
           </p>

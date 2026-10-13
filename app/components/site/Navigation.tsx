@@ -14,14 +14,12 @@ export function Navigation() {
 
   return (
     <header
-      className={`fixed inset-x-0 top-0 z-50 transition-[background-color,border-color,backdrop-filter] duration-300 ease-out ${
-      scrolled || open ?
-      'border-b border-white/10 bg-midnight/85 backdrop-blur-xl' :
-      'border-b border-transparent bg-transparent'}`
+      className={`fixed inset-x-0 top-0 z-50 border-b bg-white transition-shadow duration-300 ease-out ${
+      scrolled || open ? 'border-midnight/10 shadow-[0_8px_24px_-16px_rgba(6,23,43,0.35)]' : 'border-midnight/5'}`
       }>
       
-      <nav className="mx-auto flex h-[72px] max-w-7xl items-center justify-between px-6 lg:px-10" aria-label="Main">
-        <a href="#top" aria-label="Crystal Drinks — back to top" className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ice">
+      <nav className="mx-auto flex h-[76px] max-w-7xl items-center justify-between px-6 lg:px-10" aria-label="Main">
+        <a href="#top" aria-label="Crystal Drinks — back to top" className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ocean">
           <Logo />
         </a>
 
@@ -30,23 +28,23 @@ export function Navigation() {
           <li key={link.href}>
               <a
               href={link.href}
-              className="group relative whitespace-nowrap py-2 text-[13px] tracking-wide text-silver transition-colors duration-200 ease-out hover:text-white focus-visible:text-white focus-visible:outline-none">
+              className="group relative whitespace-nowrap py-2 text-[13px] tracking-wide text-ocean/80 transition-colors duration-200 ease-out hover:text-midnight focus-visible:text-midnight focus-visible:outline-none">
               
                 {link.label}
-                <span className="absolute inset-x-0 -bottom-0.5 h-px origin-left scale-x-0 bg-ice transition-transform duration-200 ease-out group-hover:scale-x-100 group-focus-visible:scale-x-100" />
+                <span className="absolute inset-x-0 -bottom-0.5 h-px origin-left scale-x-0 bg-ocean transition-transform duration-200 ease-out group-hover:scale-x-100 group-focus-visible:scale-x-100" />
               </a>
             </li>
           )}
         </ul>
 
         <div className="flex items-center gap-3">
-          <LiquidButton href={whatsappLink('Hello Crystal Drinks, I would like to place an order.')} external variant="outline" className="!px-5 !py-2.5 !text-[11px]">
+          <LiquidButton href={whatsappLink('Hello Crystal Drinks, I would like to place an order.')} external variant="dark" className="!px-5 !py-2.5 !text-[11px]">
             Order now
           </LiquidButton>
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
-            className="inline-flex h-10 w-10 items-center justify-center text-white lg:hidden"
+            className="inline-flex h-10 w-10 items-center justify-center text-midnight lg:hidden"
             aria-expanded={open}
             aria-controls="mobile-menu"
             aria-label={open ? 'Close menu' : 'Open menu'}>
@@ -64,12 +62,12 @@ export function Navigation() {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -8 }}
           transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
-          className="border-t border-white/10 lg:hidden">
+          className="border-t border-midnight/10 bg-white lg:hidden">
           
             <ul className="mx-auto flex max-w-7xl flex-col px-6 py-4">
               {navLinks.map((link) =>
-            <li key={link.href} className="border-b border-white/5 last:border-0">
-                  <a href={link.href} onClick={() => setOpen(false)} className="block py-4 font-serif text-2xl text-white">
+            <li key={link.href} className="border-b border-midnight/5 last:border-0">
+                  <a href={link.href} onClick={() => setOpen(false)} className="block py-4 font-serif text-2xl text-midnight">
                     {link.label}
                   </a>
                 </li>
