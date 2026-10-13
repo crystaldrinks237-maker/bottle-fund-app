@@ -61,7 +61,7 @@ export async function adminSizes() {
     qualities: QUALITIES.map(q => { const r = quals.find((x: any) => x.size_id === s.id && x.quality === q); return { quality: q, is_active: r ? r.is_active : false, pack_price: r?.pack_price ?? null }; }),
   }));
 }
-async function saveQualities(sizeId: number, list: { quality: string; is_active: boolean; pack_price: number | null }[]) {
+async function saveQualities(sizeId: number, list: any[]) {
   for (const q of list) {
     await query(`INSERT INTO water_qualities (size_id, quality, pack_price, is_active) VALUES ($1,$2,$3,$4)
                  ON CONFLICT (size_id, quality) DO UPDATE SET pack_price = EXCLUDED.pack_price, is_active = EXCLUDED.is_active`, [sizeId, q.quality, q.pack_price, q.is_active]);
