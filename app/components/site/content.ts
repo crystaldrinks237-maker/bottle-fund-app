@@ -10,7 +10,7 @@ export const navLinks: NavLink[] = [
   { label: 'Contact', href: '#contact' },
 ];
 
-export const images = { heroBottle: '/site/hero-bottle.jpg', storyWater: '/site/story-water.jpg', waterTexture: '/site/water-texture.jpg' };
+export const images = { heroLineup: '/site/hero-lineup.jpg', storyWater: '/site/story-water.jpg', waterTexture: '/site/water-texture.jpg' };
 
 export const principles = [
   { title: 'Care in every delivery', text: 'Water for your family, shop or office — packed with care, every batch.' },
