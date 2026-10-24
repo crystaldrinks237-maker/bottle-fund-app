@@ -15,7 +15,7 @@ export default function AdminPayouts() {
         empty={{ title: 'No payouts yet', text: 'Payouts are created when investments are verified.' }}
         columns={[
           { key: 'i', header: 'Investor', render: r => <><b>{r.investor_username}</b><div className="sub"><Link href={`/funds/admin/investments/${r.investment_id}`}>Investment #{r.investment_id}</Link> · {r.snap_title}</div></> },
-          { key: 'amt', header: 'Payout', sort: 'amount', align: 'right', render: r => <><MoneyDisplay value={r.amount} strong /><div className="sub">profit <MoneyDisplay value={r.profit} /></div></> },
+          { key: 'amt', header: 'Payout', sort: 'amount', align: 'right', render: r => <><MoneyDisplay value={r.cash_amount ?? r.amount} strong /><div className="sub">profit <MoneyDisplay value={r.profit} />{Number(r.reinvested_amount) > 0 && <> · reinvested <MoneyDisplay value={r.reinvested_amount} /></>}{r.reinvest_requested && !(Number(r.reinvested_amount) > 0) && <> · <b>reinvest requested</b></>}</div></> },
           { key: 'to', header: 'Send to', render: r => (r.payout_account ? `${r.payout_method || ''} ${r.payout_account}` : <span className="muted">Not provided</span>) },
           { key: 'due', header: 'Due', sort: 'due', render: r => <>{formatDateTime(r.due_at)}{r.overdue && <div className="sub" style={{ color: 'var(--red)', fontWeight: 700 }}>Overdue</div>}</> },
           { key: 's', header: 'Status', render: r => <StatusBadge status={r.display_status} /> },
