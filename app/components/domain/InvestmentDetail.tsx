@@ -5,7 +5,7 @@ import { formatDateTime, formatMoney, pct } from '@/lib/format';
 import { Countdown } from '../ui/Countdown';
 import { ErrorState, LoadingState, MoneyDisplay, StatusBadge } from '../ui/kit';
 import { AccountBox, KV, Step, Timeline } from './bits';
-import { InvestmentActions, PayoutActions, ProofButton, ReportNotReceived } from './actions';
+import { InvestmentActions, PayoutActions, ProofButton, ReinvestToggle, ReportNotReceived } from './actions';
 
 export function InvestmentDetail({ id, admin }: { id: number; admin?: boolean }) {
   const { data: i, error, loading, reload, refetch } = useApi<any>(`/api/investments/${id}`);
@@ -35,10 +35,12 @@ export function InvestmentDetail({ id, admin }: { id: number; admin?: boolean })
           {s === 'PAYOUT_DUE' && <div className="notice warn"><b>Payout due.</b> The 7-day period ended {formatDateTime(i.due_at)}. {admin ? 'Record the payment below once sent.' : 'It will be sent shortly and appear here with a transaction ID.'}</div>}
           {rejected && <div className="notice bad"><b>Payment rejected.</b> {i.rejection_reason}</div>}
           {s === 'PENDING_VERIFICATION' && <div className="notice warn">Waiting for payment verification. The 7-day countdown starts only once an administrator verifies your payment.</div>}
+          {!admin && ['VERIFIED', 'PAYOUT_DUE'].includes(s) && i.payout_status === 'DUE' && !(Number(i.reinvested_amount) > 0) && <ReinvestToggle inv={i} onDone={reload} />}
+          {admin && i.reinvest_requested && !(Number(i.reinvested_amount) > 0) && <div className="notice warn"><b>Investor wants to reinvest.</b> Use “Roll over principal” on the payout, then pay the profit only.</div>}
           <div className="card"><div className="card-head"><h2>Investment</h2></div><div className="card-pad">
             <KV items={[
               ['Funding need', admin ? <Link href={`/funds/admin/funding-needs/${i.funding_need_id}`}>{i.snap_title}</Link> : i.snap_title], ['Product', i.snap_product],
-              ['Investment amount', <MoneyDisplay value={i.amount} strong />], ['Investor profit share', pct(i.snap_investor_pct)],
+              ['Investment amount', <MoneyDisplay value={i.amount} strong />], ...(i.rolled_from_investment_id ? [['Source', <>Reinvested from <Link href={admin ? `/funds/admin/investments/${i.rolled_from_investment_id}` : `/funds/investments/${i.rolled_from_investment_id}`}>investment #{i.rolled_from_investment_id}</Link></>] as [string, React.ReactNode]] : []), ['Investor profit share', pct(i.snap_investor_pct)],
               [verified ? 'Expected profit' : 'Expected profit (estimate)', <MoneyDisplay value={i.expected_investor_profit} />],
               [verified ? 'Expected return' : 'Expected return (estimate)', <MoneyDisplay value={i.expected_total_return} strong />],
               ['Submitted', formatDateTime(i.created_at)], ['Verified at', formatDateTime(i.verified_at)], ['Payout due at (exact)', formatDateTime(i.due_at)],
@@ -52,14 +54,14 @@ export function InvestmentDetail({ id, admin }: { id: number; admin?: boolean })
       </div>
       <div className="grid2" style={{ alignItems: 'start' }}>
         <div className="card"><div className="card-head"><h2>Payment account used</h2><ProofButton proofId={i.proof_id} label="View payment proof" /></div>
-          <div className="card-pad"><AccountBox a={i.payment_snapshot} note={`Details as shown when this investment was submitted (${formatDateTime(i.payment_snapshot?.snapshotted_at)}). They never change, even if the account is edited later.`} /></div></div>
+          <div className="card-pad">{i.rolled_from_investment_id ? <p className="muted">No new payment was made. This investment was funded by reinvesting the principal from investment #{i.rolled_from_investment_id}.</p> : <AccountBox a={i.payment_snapshot} note={`Details as shown when this investment was submitted (${formatDateTime(i.payment_snapshot?.snapshotted_at)}). They never change, even if the account is edited later.`} />}</div></div>
         <div className="card"><div className="card-head"><h2>Payout</h2>{i.payout_status && <StatusBadge status={i.display_status === 'PAYOUT_DUE' && i.payout_status === 'DUE' ? 'DUE' : i.payout_status} />}</div>
           <div className="card-pad stack-sm">
             {!i.payout_id ? <p className="muted">A payout is created when the payment is verified.</p> : (<>
-              <KV items={[['Payout amount', <MoneyDisplay value={i.payout_amount} strong />], ['Status', i.payout_status === 'PAID' ? 'Paid' : i.payout_status?.toLowerCase().replace(/_/g, ' ')],
+              <KV items={[['Payout amount', <MoneyDisplay value={i.payout_cash_amount ?? i.payout_amount} strong />], ...(Number(i.reinvested_amount) > 0 ? [['Reinvested', <>{formatMoney(i.reinvested_amount)} → <Link href={admin ? `/funds/admin/investments/${i.reinvested_into}` : `/funds/investments/${i.reinvested_into}`}>investment #{i.reinvested_into}</Link></>] as [string, React.ReactNode]] : []), ['Status', i.payout_status === 'PAID' ? 'Paid' : i.payout_status?.toLowerCase().replace(/_/g, ' ')],
                 ['Transaction ID', i.transaction_id ? <span className="mono">{i.transaction_id}</span> : '—'], ['Paid on', formatDateTime(i.paid_at)],
                 ...(i.payout_replacement_txn ? [['Replacement transaction', <span className="mono" key="r">{i.payout_replacement_txn}</span>] as [string, React.ReactNode]] : [])]} />
-              {admin && <div className="row" style={{ marginTop: 8 }}><PayoutActions p={{ ...i, id: i.payout_id, amount: i.payout_amount, display_status: i.payout_status === 'DUE' && i.due_at > i.server_now ? 'SCHEDULED' : i.payout_status }} onDone={reload} /></div>}
+              {admin && <div className="row" style={{ marginTop: 8 }}><PayoutActions p={{ ...i, id: i.payout_id, amount: i.payout_amount, cash_amount: i.payout_cash_amount, principal: i.amount, profit: i.payout_profit, display_status: i.payout_status === 'DUE' && i.due_at > i.server_now ? 'SCHEDULED' : i.payout_status }} onDone={reload} /></div>}
               {!admin && i.payout_status === 'PAID' && <ReportNotReceived target={{ payout_id: i.payout_id }} onDone={reload} />}
               {!admin && i.payout_status === 'CLAIMED_NOT_RECEIVED' && <div className="notice warn">You reported this payment as not received. An administrator is reviewing it.</div>}
             </>)}

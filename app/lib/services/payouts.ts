@@ -35,7 +35,7 @@ export async function listPayouts(user: CurrentUser, url: URL, unpaged = false) 
   const from = sp.get('from'); if (from) w.add(`p.due_at >= (?::date::timestamp AT TIME ZONE '${APP_TIMEZONE}')`, from);
   const to = sp.get('to'); if (to) w.add(`p.due_at < ((?::date + 1)::timestamp AT TIME ZONE '${APP_TIMEZONE}')`, to);
   const order = sortParam(url, { due: 'p.due_at', amount: 'p.amount', paid: 'p.paid_at', created: 'p.created_at' }, 'due');
-  const cols = `p.id, p.investment_id, p.investor_id, p.amount, p.principal, p.profit, p.status, ${PAYOUT_DISPLAY} AS display_status, p.due_at, p.transaction_id, p.paid_at, p.created_at,
+  const cols = `p.id, p.investment_id, p.investor_id, p.amount, p.principal, p.profit, p.status, ${PAYOUT_DISPLAY} AS display_status, p.due_at, p.transaction_id, p.paid_at, p.created_at, p.reinvested_amount, p.reinvested_into, (p.amount - p.reinvested_amount) AS cash_amount, i.reinvest_requested,
                 i.snap_title, u.username AS investor_username,
                 (p.status IN ('DUE','PROCESSING') AND p.due_at <= now() - interval '${OVERDUE_HOURS} hours') AS overdue
                 ${admin ? ', p.notes, p.paid_to, u.payout_method, u.payout_account, p.replacement_transaction_id' : ', p.replacement_transaction_id'}`;
@@ -73,8 +73,8 @@ export async function actOnPayout(admin: CurrentUser, id: number, raw: unknown) 
       `UPDATE payouts SET status = 'PAID', transaction_id = $2, paid_at = now(), paid_to = $3, processed_by = $4, notes = COALESCE($5, notes), updated_at = now() WHERE id = $1 RETURNING *`,
       [id, txn, paidTo, admin.id, b.notes || null]);
     await t.q(`UPDATE investments SET status = 'COMPLETED', updated_at = now() WHERE id = $1`, [p.investment_id]);
-    await audit(t, admin.id, 'payout.paid', 'payout', id, { amount: p.amount, transaction_id: txn, investment_id: p.investment_id, ...(p.investor_id === admin.id ? { self_review: true } : {}) });
-    await notify(t, p.investor_id, { type: 'PAYOUT_PAID', title: 'Payout sent', body: `${formatMoney(p.amount)} has been sent. Transaction ID: ${txn}`, link: `/funds/investments/${p.investment_id}` });
+    await audit(t, admin.id, 'payout.paid', 'payout', id, { amount: p.amount, reinvested_amount: p.reinvested_amount, transaction_id: txn, investment_id: p.investment_id, ...(p.investor_id === admin.id ? { self_review: true } : {}) });
+    await notify(t, p.investor_id, { type: 'PAYOUT_PAID', title: 'Payout sent', body: `${formatMoney(Number(p.amount) - Number(p.reinvested_amount))} has been sent. Transaction ID: ${txn}`, link: `/funds/investments/${p.investment_id}` });
     return row;
   });
 }

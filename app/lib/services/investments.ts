@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { query, tx } from '../db';
+import { query, tx, Tx } from '../db';
 import { audit } from '../audit';
 import { notify, notifyAdmins } from '../notify';
 import { ApiError, bad, conflict, notFound, Where, likeTerm, pageParams, sortParam } from '../api';
@@ -175,33 +175,36 @@ export async function submitInvestment(user: CurrentUser, form: FormData) {
 
 /* ------------------------------------------------------------ verify/reject */
 export async function verifyInvestment(admin: CurrentUser, id: number) {
-  return tx(async t => {
-    const [i] = await t.q('SELECT * FROM investments WHERE id = $1 FOR UPDATE', [id]);
-    if (!i) throw notFound('Investment not found');
-    if (i.status !== 'PENDING_VERIFICATION') throw conflict(`This investment is already ${i.status.toLowerCase().replace(/_/g, ' ')}.`, 'ALREADY_PROCESSED');
-    const c = calcInvestment({ cost_price: i.snap_cost_price, sell_price: i.snap_sell_price, op_cost: i.snap_op_cost, investor_pct: i.snap_investor_pct, guarantor_pct: i.snap_guarantor_pct }, i.amount);
-    // Safety net for accounts with no guarantor on record (e.g. created before referral links): the guarantor share goes
-    // to the DEFAULT_GUARANTOR_USERNAME account. New sign-ups are assigned at sign-up time, so this is rarely needed.
-    let gid: number | null = i.guarantor_id, isFallback = false;
-    if (!gid) {
-      const fid = await defaultGuarantorId(t);
-      if (fid && fid !== i.investor_id) { gid = fid; isFallback = true; }
-    }
-    // verified_at and due_at come from the database clock, in one statement: due_at = verified_at + exactly 168 hours.
-    const [row] = await t.q(
-      `UPDATE investments SET status = 'VERIFIED', verified_at = now(), due_at = now() + interval '168 hours', reviewed_by = $2,
-              expected_investor_profit = $3, expected_total_return = $4, guarantor_profit = $5, business_profit = $6,
-              guarantor_id = $7, guarantor_is_fallback = $8, updated_at = now()
-        WHERE id = $1 RETURNING *`,
-      [id, admin.id, c.investor_profit, c.total_return, gid ? c.guarantor_profit : '0.00', c.business_profit, gid, isFallback]);
-    await t.q(`INSERT INTO payouts (investment_id, investor_id, amount, principal, profit, status, due_at) VALUES ($1,$2,$3,$4,$5,'DUE',$6)`,
-      [id, i.investor_id, c.total_return, i.amount, c.investor_profit, row.due_at]);
-    await audit(t, admin.id, 'investment.verified', 'investment', id, { amount: i.amount, verified_at: row.verified_at, due_at: row.due_at, expected_total_return: c.total_return, ...(i.investor_id === admin.id ? { self_review: true } : {}) });
-    await notify(t, i.investor_id, { type: 'PAYMENT_VERIFIED', title: 'Payment verified', body: `Your ${formatMoney(i.amount)} investment is confirmed. Payout of ${formatMoney(c.total_return)} is due on ${formatDateTime(row.due_at)}.`, link: `/funds/investments/${id}` });
-    if (gid && toPaisa(c.guarantor_profit) > 0n)
-      await notify(t, gid, { type: 'REFERRAL_VERIFIED', title: isFallback ? 'Fallback guarantor share credited' : 'A referred investment was verified', body: `Earnings of ${formatMoney(c.guarantor_profit)} added to this month.`, link: '/funds/guarantor' });
-    return row;
-  });
+  return tx(t => verifyWithin(t, admin, id));
+}
+
+/** Verification inside an existing transaction (also used when a payout's principal is rolled into a new investment). */
+export async function verifyWithin(t: Tx, admin: CurrentUser, id: number) {
+  const [i] = await t.q('SELECT * FROM investments WHERE id = $1 FOR UPDATE', [id]);
+  if (!i) throw notFound('Investment not found');
+  if (i.status !== 'PENDING_VERIFICATION') throw conflict(`This investment is already ${i.status.toLowerCase().replace(/_/g, ' ')}.`, 'ALREADY_PROCESSED');
+  const c = calcInvestment({ cost_price: i.snap_cost_price, sell_price: i.snap_sell_price, op_cost: i.snap_op_cost, investor_pct: i.snap_investor_pct, guarantor_pct: i.snap_guarantor_pct }, i.amount);
+  // Safety net for accounts with no guarantor on record (e.g. created before referral links): the guarantor share goes
+  // to the DEFAULT_GUARANTOR_USERNAME account. New sign-ups are assigned at sign-up time, so this is rarely needed.
+  let gid: number | null = i.guarantor_id, isFallback = false;
+  if (!gid) {
+    const fid = await defaultGuarantorId(t);
+    if (fid && fid !== i.investor_id) { gid = fid; isFallback = true; }
+  }
+  // verified_at and due_at come from the database clock, in one statement: due_at = verified_at + exactly 168 hours.
+  const [row] = await t.q(
+    `UPDATE investments SET status = 'VERIFIED', verified_at = now(), due_at = now() + interval '168 hours', reviewed_by = $2,
+            expected_investor_profit = $3, expected_total_return = $4, guarantor_profit = $5, business_profit = $6,
+            guarantor_id = $7, guarantor_is_fallback = $8, updated_at = now()
+      WHERE id = $1 RETURNING *`,
+    [id, admin.id, c.investor_profit, c.total_return, gid ? c.guarantor_profit : '0.00', c.business_profit, gid, isFallback]);
+  await t.q(`INSERT INTO payouts (investment_id, investor_id, amount, principal, profit, status, due_at) VALUES ($1,$2,$3,$4,$5,'DUE',$6)`,
+    [id, i.investor_id, c.total_return, i.amount, c.investor_profit, row.due_at]);
+  await audit(t, admin.id, 'investment.verified', 'investment', id, { amount: i.amount, verified_at: row.verified_at, due_at: row.due_at, expected_total_return: c.total_return, ...(i.investor_id === admin.id ? { self_review: true } : {}) });
+  await notify(t, i.investor_id, { type: 'PAYMENT_VERIFIED', title: 'Payment verified', body: `Your ${formatMoney(i.amount)} investment is confirmed. Payout of ${formatMoney(c.total_return)} is due on ${formatDateTime(row.due_at)}.`, link: `/funds/investments/${id}` });
+  if (gid && toPaisa(c.guarantor_profit) > 0n)
+    await notify(t, gid, { type: 'REFERRAL_VERIFIED', title: isFallback ? 'Fallback guarantor share credited' : 'A referred investment was verified', body: `Earnings of ${formatMoney(c.guarantor_profit)} added to this month.`, link: '/funds/guarantor' });
+  return row;
 }
 
 export async function rejectInvestment(admin: CurrentUser, id: number, rawReason: unknown) {
@@ -231,7 +234,8 @@ const INV_LIST_SELECT = `
   i.expected_total_return, i.expected_investor_profit, i.guarantor_profit, i.rejection_reason,
   i.guarantor_is_fallback, i.payment_account_id, i.payment_snapshot ->> 'account_name' AS account_name, i.proof_id,
   u.username AS investor_username, g.username AS guarantor_username,
-  p.id AS payout_id, p.status AS payout_status, p.transaction_id, p.paid_at`;
+  p.id AS payout_id, p.status AS payout_status, p.transaction_id, p.paid_at,
+  i.reinvest_requested, i.rolled_from_investment_id, p.reinvested_amount, p.reinvested_into`;
 const INV_FROM = `FROM investments i JOIN users u ON u.id = i.investor_id LEFT JOIN users g ON g.id = i.guarantor_id LEFT JOIN payouts p ON p.investment_id = i.id`;
 
 export async function listInvestments(user: CurrentUser, url: URL, opts: { forceNeedId?: number; unpaged?: boolean } = {}) {
@@ -269,7 +273,7 @@ export async function getInvestment(user: CurrentUser, id: number) {
   const admin = isAdmin(user);
   const [r] = await query(
     `SELECT ${INV_LIST_SELECT}, i.payment_snapshot, i.reviewed_by, i.rejected_at, i.business_profit,
-            p.amount AS payout_amount, p.replacement_transaction_id AS payout_replacement_txn, p.processed_by,
+            p.amount AS payout_amount, (p.amount - p.reinvested_amount) AS payout_cash_amount, p.profit AS payout_profit, p.replacement_transaction_id AS payout_replacement_txn, p.processed_by,
             fn.status AS need_status, ru.username AS reviewed_by_username,
             u.phone AS investor_phone, u.full_name AS investor_full_name, u.payout_method, u.payout_account,
             now() AS server_now

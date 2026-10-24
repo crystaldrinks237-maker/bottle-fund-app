@@ -14,7 +14,7 @@ export default function Payouts() {
         empty={{ title: 'No payouts yet', text: 'A payout appears here once an investment is verified.' }}
         columns={[
           { key: 'inv', header: 'Investment', render: r => <Link href={`/funds/investments/${r.investment_id}`}>#{r.investment_id} · {r.snap_title}</Link> },
-          { key: 'amount', header: 'Payout', sort: 'amount', align: 'right', render: r => <MoneyDisplay value={r.amount} strong /> },
+          { key: 'amount', header: 'Payout', sort: 'amount', align: 'right', render: r => <><MoneyDisplay value={r.cash_amount ?? r.amount} strong />{Number(r.reinvested_amount) > 0 && <div className="sub">+ <MoneyDisplay value={r.reinvested_amount} /> reinvested</div>}</> },
           { key: 'due', header: 'Due', sort: 'due', render: r => formatDateTime(r.due_at) },
           { key: 'st', header: 'Status', render: r => <StatusBadge status={r.display_status} /> },
           { key: 'txn', header: 'Transaction ID', render: r => (r.transaction_id ? <span className="mono">{r.transaction_id}</span> : '—') },
