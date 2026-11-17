@@ -36,7 +36,7 @@ export function InvestmentDetail({ id, admin }: { id: number; admin?: boolean })
           {rejected && <div className="notice bad"><b>Payment rejected.</b> {i.rejection_reason}</div>}
           {s === 'PENDING_VERIFICATION' && <div className="notice warn">Waiting for payment verification. The 7-day countdown starts only once an administrator verifies your payment.</div>}
           {!admin && ['VERIFIED', 'PAYOUT_DUE'].includes(s) && i.payout_status === 'DUE' && !(Number(i.reinvested_amount) > 0) && <ReinvestToggle inv={i} onDone={reload} />}
-          {admin && i.reinvest_requested && !(Number(i.reinvested_amount) > 0) && <div className="notice warn"><b>Investor wants to reinvest.</b> Use “Roll over principal” on the payout, then pay the profit only.</div>}
+          {admin && i.reinvest_requested && !(Number(i.reinvested_amount) > 0) && <div className="notice warn"><b>Investor chose to reinvest.</b> The principal moves into an open funding need automatically once the payout is due. If none has room, open a new funding need, or use “Roll over principal” on the payout. Then pay the profit only.</div>}
           <div className="card"><div className="card-head"><h2>Investment</h2></div><div className="card-pad">
             <KV items={[
               ['Funding need', admin ? <Link href={`/funds/admin/funding-needs/${i.funding_need_id}`}>{i.snap_title}</Link> : i.snap_title], ['Product', i.snap_product],

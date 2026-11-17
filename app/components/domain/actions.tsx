@@ -122,7 +122,7 @@ function RolloverButton({ p, onDone }: { p: any; onDone: () => void }) {
     <button className="btn btn-sm btn-primary" onClick={() => setOpen(true)}>Roll over principal</button>
     {open && <Modal title="Reinvest principal" onClose={() => setOpen(false)}>
       <div className="stack-sm">
-        <p><b>{p.investor_username}</b> asked to reinvest <b>{formatMoney(p.principal)}</b> for another week and receive only the profit of <b>{formatMoney(p.profit)}</b>. Choose the funding need that receives the principal. The money is already with the business, so no payment proof is needed. The new investment is verified now and its 7 days start now.</p>
+        <p><b>No open funding need could take this automatically.</b> <b>{p.investor_username}</b> asked to reinvest <b>{formatMoney(p.principal)}</b> for another week and receive only the profit of <b>{formatMoney(p.profit)}</b>. Open a new funding need to have it placed automatically, or choose one here. The money is already with the business, so no payment proof is needed. The new investment is verified now and its 7 days start now.</p>
         {err && <div className="notice bad">{err}</div>}
         {!needs && !err ? <p className="muted">Loading open funding needs…</p> : needs && needs.length === 0 ? <p className="muted">There is no open funding need. Open one first, then come back.</p> : (
           <select className="input" value={needId} onChange={e => setNeedId(e.target.value)} aria-label="Funding need">
@@ -149,8 +149,8 @@ export function ReinvestToggle({ inv, onDone }: { inv: any; onDone: () => void }
   }
   return (
     <div className="card"><div className="card-head"><h2>Reinvest for next week</h2></div><div className="card-pad stack-sm">
-      <p>Leave your <b>{formatMoney(inv.amount)}</b> with Crystal Drinks for another week and receive only your profit of <b>{formatMoney(inv.expected_investor_profit)}</b> when this payout is due. Your principal goes into next week&apos;s funding and earns its own profit after its own 7 days.</p>
-      {on && <div className="notice good">Reinvest is on. We will send only the profit and move your principal into next week&apos;s funding.</div>}
+      <p>Leave your <b>{formatMoney(inv.amount)}</b> with Crystal Drinks for another week and receive only your profit of <b>{formatMoney(inv.expected_investor_profit)}</b> when this payout is due. When the payout is due, your principal is moved automatically into a currently open funding need, and earns its own profit after its own 7 days.</p>
+      {on && <div className="notice good">Reinvest is on. When your payout is due we move your principal into an open funding need automatically and send you only the profit.</div>}
       <div><button className={`btn ${on ? '' : 'btn-primary'}`} disabled={busy} onClick={() => set(!on)}>{on ? 'Turn off — pay me everything' : 'Reinvest my principal'}</button></div>
       <p className="small muted">This applies to this week only. You can change your mind until your payout is processed.</p>
     </div></div>

@@ -12,6 +12,7 @@ import { DAY_START_SQL } from './accounts';
 import { defaultGuarantorId } from '../referrals';
 import type { CurrentUser } from '../session';
 import { isAdmin } from '../session';
+import { autoRollOverPending } from './reinvest';
 
 /** Effective status: derived from due_at so it is correct even if nothing has "run" since the deadline passed. */
 export const EFF = `(CASE WHEN i.status = 'VERIFIED' AND i.due_at <= now() THEN 'PAYOUT_DUE' ELSE i.status END)`;
@@ -21,7 +22,12 @@ export const NO_ACCOUNT_MSG = 'No payment account is currently available for thi
 /** Lazily flips VERIFIED → PAYOUT_DUE once due_at has passed and emits the notifications exactly once. No cron needed. */
 export async function materializeDue() {
   const due = await query(`SELECT 1 FROM investments WHERE status = 'VERIFIED' AND due_at <= now() LIMIT 1`);
-  if (!due.length) return;
+  if (due.length) await flipDue();
+  // Investors who chose to reinvest: roll their principal into an open funding need as soon as the payout is due.
+  await autoRollOverPending().catch(() => {});
+}
+
+async function flipDue() {
   await tx(async t => {
     const rows = await t.q(
       `UPDATE investments SET status = 'PAYOUT_DUE', updated_at = now() WHERE status = 'VERIFIED' AND due_at <= now()
@@ -179,7 +185,7 @@ export async function verifyInvestment(admin: CurrentUser, id: number) {
 }
 
 /** Verification inside an existing transaction (also used when a payout's principal is rolled into a new investment). */
-export async function verifyWithin(t: Tx, admin: CurrentUser, id: number) {
+export async function verifyWithin(t: Tx, admin: { id: number | null }, id: number) {
   const [i] = await t.q('SELECT * FROM investments WHERE id = $1 FOR UPDATE', [id]);
   if (!i) throw notFound('Investment not found');
   if (i.status !== 'PENDING_VERIFICATION') throw conflict(`This investment is already ${i.status.toLowerCase().replace(/_/g, ' ')}.`, 'ALREADY_PROCESSED');
