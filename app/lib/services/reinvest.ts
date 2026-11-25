@@ -94,7 +94,7 @@ export async function rollOverPayout(admin: CurrentUser, payoutId: number, raw: 
  * Automatic roll-over: once a payout is due and the investor asked to reinvest, the principal goes into the oldest open
  * funding need that has room for it. Returns null (and changes nothing) if nothing is eligible, so an admin can roll it manually.
  */
-export async function autoRollOver(payoutId: number): Promise<{ payout_id: number; new_investment_id: number } | null> {
+export async function autoRollOver(payoutId: number): Promise<{ payout_id: number; new_investment_id: number } | { blocked: string } | null> {
   return tx(async t => {
     const [p] = await t.q('SELECT p.*, (p.due_at <= now()) AS is_due FROM payouts p WHERE p.id = $1 FOR UPDATE', [payoutId]);
     if (!p || p.status !== 'DUE' || !p.is_due || Number(p.reinvested_amount) > 0) return null;
@@ -106,16 +106,33 @@ export async function autoRollOver(payoutId: number): Promise<{ payout_id: numbe
       const [need] = await t.q('SELECT * FROM funding_needs WHERE id = $1 FOR UPDATE', [id]);
       if (need && fitsNeed(need, principal)) return rollInto(t, { id: null }, p, i, need);
     }
-    return null;
+    return { blocked: open.length ? `no open funding need has room for ${formatMoney(p.principal)}` : 'there is no open funding need' };
   });
 }
 
-/** Rolls over every due payout whose investor asked to reinvest. Safe to call often; failures are left for the admin. */
+/** Tell the admins once per payout why an automatic roll-over did not happen, so it never fails silently. */
+async function reportBlocked(payoutId: number, why: string) {
+  const link = `/funds/admin/payouts?status=DUE&reinvest=${payoutId}`;
+  const seen = await query('SELECT 1 FROM notifications WHERE type = $1 AND link = $2 LIMIT 1', ['REINVEST_BLOCKED', link]);
+  if (seen.length) return;
+  await tx(t => notifyAdmins(t, { type: 'REINVEST_BLOCKED', title: 'Reinvestment needs your help', body: `Payout #${payoutId} could not be reinvested automatically: ${why}. Open a funding need or roll it over by hand.`, link }));
+}
+
+/** Rolls over every due payout whose investor asked to reinvest. Safe to call often; anything that cannot be placed is reported to the admins. */
 export async function autoRollOverPending(): Promise<number> {
   const rows = await query(
     `SELECT p.id FROM payouts p JOIN investments i ON i.id = p.investment_id
       WHERE i.reinvest_requested AND p.status = 'DUE' AND p.due_at <= now() AND p.reinvested_amount = 0 ORDER BY p.due_at`);
   let done = 0;
-  for (const r of rows) { try { if (await autoRollOver(r.id)) done++; } catch { /* leave it for the admin */ } }
+  for (const r of rows) {
+    try {
+      const res = await autoRollOver(r.id);
+      if (res && 'blocked' in res) await reportBlocked(r.id, res.blocked);
+      else if (res) done++;
+    } catch (e: any) {
+      console.error('auto reinvest failed for payout', r.id, e);
+      await reportBlocked(r.id, `an error occurred (${String(e?.message || e).slice(0, 160)})`).catch(() => {});
+    }
+  }
   return done;
 }
